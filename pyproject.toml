@@ -3,7 +3,7 @@ name = "coldcamera"
 version = "1.0.0"
 description = ""
 authors = [
-    {name = "selfkilla666",email = "selfkilla666@gmail.com"}
+    {name = "deathloveleopards", email = "deathloveleopards@gmail.com"}
 ]
 license = {text = "Apache-2.0"}
 readme = "README.md"
