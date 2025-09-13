@@ -1,0 +1,25 @@
+[project]
+name = "coldcamera"
+version = "1.0.0"
+description = ""
+authors = [
+    {name = "selfkilla666",email = "selfkilla666@gmail.com"}
+]
+license = {text = "Apache-2.0"}
+readme = "README.md"
+requires-python = ">=3.11, <3.12"
+dependencies = [
+    "pyside6 (>=6.9.2,<7.0.0)",
+    "pillow (>=11.3.0,<12.0.0)",
+    "numpy (==2.2.6)",
+    "loguru (>=0.7.3,<0.8.0)",
+    "pyqtdarktheme (>=2.1.0,<3.0.0)",
+    "moderngl (>=5.12.0,<6.0.0)",
+    "opencv-python (>=4.12.0.88,<5.0.0.0)",
+    "blend-modes (>=2.2.0,<3.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
