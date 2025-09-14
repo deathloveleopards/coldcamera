@@ -1,81 +1,99 @@
 
-from typing import Optional, Dict, Any
+from abc import ABC, abstractmethod
+from typing import Optional, List, Dict, Any
 
 from application.classes.parameter import EffectParam
+from application.classes.parameters_manager import EffectParamManager
+from application.exceptions import NotImplementedEffect
 from application.types import Processable
-from application.exceptions import NotImplementedEffect, InvalidValue
 
 
-class EffectBase:
+class EffectBase(ABC):
     """
-    Base class for all image processing effects.
+    Abstract base class for all image processing effects.
 
-    Each effect defines a set of parameters and provides
-    a GLSL-based apply() method for rendering.
+    Each effect defines a set of parameters (via EffectParamManager),
+    provides an `apply()` method for rendering, and a declarative
+    `layout` description for building UI components.
 
     :param name: Internal effect identifier (used in presets).
-    :param label: Human-readable label for UI (localizable).
-    :param hint: Optional description or tooltip (localizable).
+    :param params: Optional list of EffectParam objects to initialize parameters.
     """
 
-    def __init__(self, name: str, label: str, icon: Optional[str] = None, hint: Optional[str] = None):
+    def __init__(self, name: str, *, params: Optional[List[EffectParam]] = None):
         self.name = name
-        self.label = label
-        self.icon = icon
-        self.hint = hint
-        self.params = {}
+        self.params = EffectParamManager(params)
 
+    @abstractmethod
     def apply(self, input_data: Processable) -> Processable:
         """
         Apply the effect to an image or sequence.
-        Subclasses must override this method.
 
-        :param input_data: Input image (PIL.Image or numpy.ndarray),
-                           or sequence (ImageSequence).
+        :param input_data: Input image (PIL.Image, numpy.ndarray, or ImageSequence).
         :return: Processed image or sequence in the same format.
+        :raises NotImplementedEffect: If not overridden in subclass.
         """
+
         raise NotImplementedEffect
 
+    @property
+    @abstractmethod
+    def layout(self) -> Dict[str, Any]:
+        """
+        Declarative description of the effect's UI layout.
+
+        :return: A dictionary describing the UI structure.
+        :raises NotImplementedError: If not implemented in subclass.
+        """
+
+        raise NotImplementedError("Effect layout must be implemented in subclasses")
+
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize effect with only parameter values."""
+        """
+        Serialize the effect with only parameter values.
+
+        :return: Dictionary containing effect type, name, and parameters.
+        """
+
         return {
             "type": self.__class__.__name__,
             "name": self.name,
-            "label": self.label,
-            "hint": self.hint,
-            "params": {k: v.to_dict() for k, v in self.params.items()},
+            "params": self.params.to_dict(),
         }
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "EffectBase":
         """
         Reconstruct effect from dictionary.
-        Assumes the effect subclass defines default params in __init__.
-        """
-        effect = cls(d["name"], d["label"], hint=d.get("hint"))
-        params_data = d.get("params", {})
 
-        for k, v in params_data.items():
-            if k in effect.params:
-                try:
-                    effect.params[k] = EffectParam.from_dict(k, v, effect.params[k])
-                except InvalidValue as e:
-                    # TODO: Invalid Value error popup
-                    raise InvalidValue(f"Invalid value for param '{k}' in effect '{effect.name}': {e}")
+        :param d: Serialized dictionary with effect data.
+        :return: Restored EffectBase subclass instance.
+        :raises InvalidValue: If parameter values are invalid.
+        """
+
+        effect = cls(d["name"])
+        effect.params.from_dict(d.get("params", {}))
         return effect
 
     def set_param(self, name: str, value: Any) -> None:
-        """Safely update a parameter value with validation."""
-        if name not in self.params:
-            raise KeyError(f"Unknown parameter: {name}")
-        self.params[name].set_value(value)
+        """
+        Safely update a parameter value with validation.
+
+        :param name: Parameter identifier.
+        :param value: New value for the parameter.
+        """
+
+        self.params.set_parameter(name, value)
 
     def get_param(self, name: str) -> Any:
-        """Get current value of a parameter."""
-        if name not in self.params:
-            raise KeyError(f"Unknown parameter: {name}")
-        return self.params[name].value
+        """
+        Get the current value of a parameter.
+
+        :param name: Parameter identifier.
+        :return: Current parameter value.
+        """
+
+        return self.params.get_parameter(name)
 
     def __repr__(self) -> str:
-        params_str = ", ".join(f"{k}={v.value!r}" for k, v in self.params.items())
-        return f"<{self.__class__.__name__} name={self.name!r}, params={{ {params_str} }}>"
+        return f"<{self.__class__.__name__} name={self.name!r}, params={self.params}>"
