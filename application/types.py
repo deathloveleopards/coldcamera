@@ -1,19 +1,12 @@
 
-from typing import Union, Literal
+from typing import Union
+
 from PIL import Image, ImageSequence
-import numpy as np
+from numpy import ndarray
 
-
-""" Parameters literal types """
-
-ParamType = Literal[
-    "int_slider", "int_spinbox",
-    "float_slider", "float_spinbox",
-    "bool", "button", "enum", "string"
-]
 
 """ Processable images, arrays & sequences """
 
-ImageLike = Union[Image.Image, np.ndarray]
+ImageLike = Union[Image.Image, ndarray]
 SequenceLike = ImageSequence.Iterator
 Processable = Union[ImageLike, SequenceLike]
