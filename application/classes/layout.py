@@ -1,4 +1,3 @@
-
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Callable, Type, TYPE_CHECKING
 from enum import Enum
@@ -8,9 +7,7 @@ if TYPE_CHECKING:
 
 
 class LayoutElementBase(ABC):
-    """
-    Abstract base class for all layout elements.
-    """
+    """ Abstract base class for all layout elements. """
 
     @abstractmethod
     def to_dict(self) -> Dict[str, Any]:
@@ -18,6 +15,7 @@ class LayoutElementBase(ABC):
         Convert the element into a dictionary representation.
 
         :return: Dictionary containing serialized element data.
+        :raises NotImplementedError: If subclass does not implement this method.
         """
 
         raise NotImplementedError("Subclasses must implement to_dict().")
@@ -50,7 +48,14 @@ class ParameterElementBase(LayoutElementBase, ABC):
         :return: The widget type as a string.
         """
 
-        raise NotImplementedError("Subclasses must define a widget property.")
+    @property
+    @abstractmethod
+    def type_name(self) -> str:
+        """
+        More specific type identifier for the parameter element.
+
+        :return: The parameter type name (e.g. "param_spinbox").
+        """
 
     def _base_dict(self) -> Dict[str, Any]:
         """
@@ -60,7 +65,7 @@ class ParameterElementBase(LayoutElementBase, ABC):
         """
 
         return {
-            "type": "param",
+            "type": self.type_name,
             "name": self.name,
             "label": self.label,
             "widget": self.widget,
@@ -81,6 +86,7 @@ class ParameterSlider(ParameterElementBase):
     """
 
     widget = "slider"
+    type_name = "param_slider"
 
     def __init__(
         self,
@@ -122,6 +128,7 @@ class ParameterSpinBox(ParameterElementBase):
     """
 
     widget = "spinbox"
+    type_name = "param_spinbox"
 
     def __init__(
         self,
@@ -160,6 +167,7 @@ class ParameterCheckBox(ParameterElementBase):
     """
 
     widget = "checkbox"
+    type_name = "param_checkbox"
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -182,6 +190,7 @@ class ParameterDropdown(ParameterElementBase):
     """
 
     widget = "dropdown"
+    type_name = "param_dropdown"
 
     def __init__(
         self,
@@ -337,11 +346,15 @@ class EffectLayout:
             layout = EffectLayout(...)
             @layout.callback("reset")
             def _reset(effect, *args): ...
+
+        :param name: Name of the callback.
+        :return: Decorator function that registers the callback.
         """
 
         def decorator(func: Callable):
             self._callbacks[name] = func
             return func
+
         return decorator
 
     def trigger(self, name: str, *args, **kwargs):
@@ -351,6 +364,7 @@ class EffectLayout:
         :param name: Callback name to invoke.
         :param args: Positional arguments passed to callback.
         :param kwargs: Keyword arguments passed to callback.
+        :return: Result of the callback function.
         :raises KeyError: If callback not registered.
         """
 
