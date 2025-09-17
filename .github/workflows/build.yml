@@ -37,8 +37,8 @@ jobs:
       - name: Get version from pyproject.toml
         id: get_version
         run: |
-          python -c "import tomli; data = tomli.load(open('pyproject.toml','rb')); print(f'version={data['project']['version']}')" >> $GITHUB_OUTPUT
-        shell: bash  # гарантируем одинаковое поведение на всех платформах
+          python -c "import tomli; data = tomli.load(open('pyproject.toml','rb')); print('version=' + data['project']['version'])" >> $GITHUB_OUTPUT
+        shell: bash
 
       - name: Build with PyInstaller
         run: |
