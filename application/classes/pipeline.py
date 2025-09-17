@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any, Iterator, Union
 
 from application.classes.register import EFFECT_REGISTRY
 from application.classes.effect import EffectBase
+from application.classes.register import get_by_name
 from application.types import Processable, ImageSequence
 
 
@@ -130,10 +131,10 @@ class ProcessingPipeline:
         """
         effects: List[EffectBase] = []
         for eff_data in d.get("pipeline", []):
-            eff_type = eff_data.get("type")
-            if eff_type not in EFFECT_REGISTRY:
-                raise ValueError(f"Unknown effect type: {eff_type}")
-            effect_cls = EFFECT_REGISTRY[eff_type]
+            eff_name = eff_data.get("type")
+            effect_cls = get_by_name(eff_name)
+            if effect_cls is None:
+                raise ValueError(f"Unknown effect type: {eff_name}")
             effect = effect_cls.from_dict(eff_data)
             effects.append(effect)
         return cls(effects)

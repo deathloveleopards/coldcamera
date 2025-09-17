@@ -2,12 +2,14 @@
 import sys
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QFrame,
-    QSplitter, QStatusBar, QFileDialog
+    QSplitter, QStatusBar, QFileDialog, QListWidgetItem
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QImage
 
 from application.classes.video_provider import VideoFrameProvider
+from application.classes.pipeline import ProcessingPipeline
+from application.widgets.effect import EffectWidget
 from application.widgets.viewport import ViewportWidget
 from application.widgets.pipeline import PipelineWidget
 
@@ -83,6 +85,17 @@ class MainWindow(QMainWindow):
 
         file_menu.addSeparator()
 
+        # --- Preset actions ---
+        save_preset_action = QAction("Save preset...", self)
+        save_preset_action.triggered.connect(self.save_preset)
+        file_menu.addAction(save_preset_action)
+
+        load_preset_action = QAction("Load preset...", self)
+        load_preset_action.triggered.connect(self.load_preset)
+        file_menu.addAction(load_preset_action)
+
+        file_menu.addSeparator()
+
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
@@ -103,7 +116,7 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setHandleWidth(0)
 
-        self.pipeline_widget = PipelineWidget()
+        self.pipeline_widget = PipelineWidget(self)
         pipeline_frame = QFrame()
         pipeline_frame.setFrameShape(QFrame.Shape.StyledPanel)
         pipeline_layout = QVBoxLayout(pipeline_frame)
@@ -114,7 +127,7 @@ class MainWindow(QMainWindow):
         viewport_frame.setFrameShape(QFrame.Shape.StyledPanel)
         viewport_layout = QVBoxLayout(viewport_frame)
         viewport_layout.setContentsMargins(0, 0, 0, 0)
-        self.viewport = ViewportWidget()
+        self.viewport = ViewportWidget(self)
         viewport_layout.addWidget(self.viewport)
 
         splitter.addWidget(pipeline_frame)
@@ -357,6 +370,74 @@ class MainWindow(QMainWindow):
 
         out.release()
         self.statusBar().showMessage(f"Video exported: {file_name}")
+
+    # -------------------
+    # Presets Methods
+    # -------------------
+    def save_preset(self):
+        """
+        Save the current pipeline configuration to a JSON file.
+
+        This method opens a QFileDialog so the user can select a save path,
+        then serializes the current ProcessingPipeline (all effects and
+        their parameters) into a JSON file.
+
+        :raises IOError: If writing the file fails.
+        """
+        file_name, _ = QFileDialog.getSaveFileName(
+            self, "Save preset", "", "JSON (*.json)"
+        )
+        if not file_name:
+            return
+
+        try:
+            self.pipeline_widget.pipeline.save_preset(file_name)
+            self.statusBar().showMessage(f"Preset saved: {file_name}")
+        except Exception as e:
+            self.statusBar().showMessage(f"Failed to save preset: {e}")
+
+    def load_preset(self):
+        """
+        Load a pipeline configuration from a JSON file.
+
+        This method opens a QFileDialog so the user can choose a preset file,
+        then deserializes it into a new ProcessingPipeline. The old pipeline
+        in PipelineWidget is replaced, and the effects list in the UI is rebuilt.
+
+        :raises ValueError: If the preset file contains unknown or invalid effects.
+        """
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Load preset", "", "JSON (*.json)"
+        )
+        if not file_name:
+            return
+
+        try:
+            pipeline = ProcessingPipeline.load_preset(file_name)
+        except Exception as e:
+            self.statusBar().showMessage(f"Failed to load preset: {e}")
+            return
+
+        # Replace the pipeline object in the widget
+        self.pipeline_widget.pipeline = pipeline
+
+        # Rebuild the UI list of effects
+        self.pipeline_widget.effects_list.clear()
+        self.pipeline_widget._add_placeholder_item()
+        for eff in pipeline.effects:
+            # Build widget from an existing effect instance
+            w = EffectWidget.build_from_effect_class(eff.__class__, existing_effect=eff)
+            item = QListWidgetItem()
+            item.setSizeHint(w.sizeHint())
+            self.pipeline_widget.effects_list.insertItem(
+                self.pipeline_widget.effects_list.row(self.pipeline_widget.placeholder_item),
+                item
+            )
+            self.pipeline_widget.effects_list.setItemWidget(item, w)
+
+        self.pipeline_widget._update_positions()
+        self.pipeline_widget._check_placeholder()
+        self.statusBar().showMessage(f"Preset loaded: {file_name}")
 
 
 if __name__ == "__main__":

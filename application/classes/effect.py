@@ -9,6 +9,7 @@ from application.exceptions import NotImplementedEffect
 from application.types import Processable
 
 
+
 class EffectBase(ABC):
     """
     Abstract base class for all image processing effects.
@@ -100,8 +101,16 @@ class EffectBase(ABC):
 
         :return: Dictionary containing effect type, name, and parameters.
         """
+        # Local import to avoid circular dependency
+        from application.classes.register import get_name_for_class
+
+        display_name = get_name_for_class(self.__class__)
+
+        if display_name is None:
+            display_name = self.__class__.__name__  # fallback
+
         return {
-            "type": self.__class__.__name__,
+            "type": display_name,
             "name": self.name,
             "params": self.params.to_dict(),
         }

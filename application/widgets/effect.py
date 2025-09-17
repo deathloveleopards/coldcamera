@@ -302,14 +302,17 @@ class EffectWidget(QFrame):
             self.update()
 
     @classmethod
-    def build_from_effect_class(cls, effect_class, *args, **kwargs):
+    def build_from_effect_class(cls, effect_class, *, existing_effect=None):
         """
-        Instantiate an EffectWidget from an Effect class.
+        Construct an EffectWidget either from a class or an existing effect instance.
 
-        :param effect_class: Class of the effect to instantiate.
-        :param args: Positional arguments for the effect constructor.
-        :param kwargs: Keyword arguments for the effect constructor.
-        :return: Initialized EffectWidget instance.
+        :param effect_class: The effect class to instantiate if no existing instance is given.
+        :param existing_effect: Optional pre-built EffectBase instance (e.g. loaded from preset).
+        :return: An EffectWidget wrapping the effect.
         """
-        effect = effect_class(*args, **kwargs)
+        if existing_effect is not None:
+            effect = existing_effect
+        else:
+            effect = effect_class()
         return cls(effect)
+
