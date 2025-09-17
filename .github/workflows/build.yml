@@ -1,0 +1,71 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            ext: zip
+          - os: ubuntu-latest
+            platform: linux
+            ext: tar.gz
+          - os: macos-latest
+            platform: macos
+            ext: zip
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller tomli
+
+      - name: Get version from pyproject.toml
+        id: get_version
+        run: |
+          python - << 'EOF'
+          import tomli
+          with open("pyproject.toml", "rb") as f:
+              data = tomli.load(f)
+          version = data["project"]["version"]
+          print(f"::set-output name=version::{version}")
+          EOF
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller build.spec
+
+      - name: Package artifact
+        run: |
+          VERSION=${{ steps.get_version.outputs.version }}
+          FILENAME=coldcamera_portable-v${VERSION}-${{ matrix.platform }}-x64
+
+          if [ "${{ matrix.ext }}" = "zip" ]; then
+            7z a "$FILENAME.zip" ./dist/coldcamera/*
+          else
+            tar -czf "$FILENAME.tar.gz" -C dist coldcamera
+          fi
+
+      - name: Upload artifact to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: Release v${{ steps.get_version.outputs.version }}
+          files: |
+            coldcamera_portable-v${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-x64.${{ matrix.ext }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
