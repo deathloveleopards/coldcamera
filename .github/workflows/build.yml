@@ -37,13 +37,8 @@ jobs:
       - name: Get version from pyproject.toml
         id: get_version
         run: |
-          python - << 'EOF'
-          import tomli
-          with open("pyproject.toml", "rb") as f:
-              data = tomli.load(f)
-          version = data["project"]["version"]
-          print(f"::set-output name=version::{version}")
-          EOF
+          python -c "import tomli; data = tomli.load(open('pyproject.toml','rb')); print(f'version={data['project']['version']}')" >> $GITHUB_OUTPUT
+        shell: bash  # гарантируем одинаковое поведение на всех платформах
 
       - name: Build with PyInstaller
         run: |
@@ -59,6 +54,7 @@ jobs:
           else
             tar -czf "$FILENAME.tar.gz" -C dist coldcamera
           fi
+        shell: bash
 
       - name: Upload artifact to release
         uses: softprops/action-gh-release@v2
