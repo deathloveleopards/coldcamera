@@ -24,6 +24,9 @@ class EffectBase(ABC):
     :param hint: Optional description or tooltip for the effect.
     """
 
+    # ------------------------
+    # Class-level callbacks
+    # ------------------------
     _class_callbacks: Dict[str, Callable] = {}
 
     @classmethod
@@ -36,6 +39,9 @@ class EffectBase(ABC):
                 @EffectBase.callback("apply_blur")
                 def _on_apply(self, *args, **kwargs):
                     ...
+
+        :param name: Name of the callback to register.
+        :return: Decorator function that binds the callback.
         """
 
         def decorator(func: Callable):
@@ -44,6 +50,9 @@ class EffectBase(ABC):
 
         return decorator
 
+    # ------------------------
+    # Initialization
+    # ------------------------
     def __init__(
         self,
         name: str,
@@ -62,10 +71,15 @@ class EffectBase(ABC):
             elements=layout_elements,
         )
 
+        self.enabled = True
+
         # Bind class-level callbacks to this instance
         for cb_name, func in self._class_callbacks.items():
             self.layout._callbacks[cb_name] = func.__get__(self, self.__class__)
 
+    # ------------------------
+    # Abstract methods
+    # ------------------------
     @abstractmethod
     def apply(self, input_data: Processable) -> Processable:
         """
@@ -75,16 +89,17 @@ class EffectBase(ABC):
         :return: Processed image or sequence in the same format.
         :raises NotImplementedEffect: If not overridden in subclass.
         """
-
         raise NotImplementedEffect
 
+    # ------------------------
+    # Serialization / Deserialization
+    # ------------------------
     def to_dict(self) -> Dict[str, Any]:
         """
         Serialize the effect with only parameter values.
 
         :return: Dictionary containing effect type, name, and parameters.
         """
-
         return {
             "type": self.__class__.__name__,
             "name": self.name,
@@ -100,11 +115,13 @@ class EffectBase(ABC):
         :return: Restored EffectBase subclass instance.
         :raises InvalidValue: If parameter values are invalid.
         """
-
         effect = cls(d["name"])
         effect.params.from_dict(d.get("params", {}))
         return effect
 
+    # ------------------------
+    # Parameter access
+    # ------------------------
     def set_param(self, name: str, value: Any) -> None:
         """
         Safely update a parameter value with validation.
@@ -112,7 +129,6 @@ class EffectBase(ABC):
         :param name: Parameter identifier.
         :param value: New value for the parameter.
         """
-
         self.params.set_parameter(name, value)
 
     def get_param(self, name: str) -> Any:
@@ -122,8 +138,10 @@ class EffectBase(ABC):
         :param name: Parameter identifier.
         :return: Current parameter value.
         """
-
         return self.params.get_parameter(name)
 
+    # ------------------------
+    # Representation
+    # ------------------------
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} name={self.name!r}, params={self.params}>"
