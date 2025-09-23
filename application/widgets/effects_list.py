@@ -21,7 +21,8 @@ class EffectsList(QListWidget):
         :param item: QListWidgetItem to act as placeholder.
         """
         self.placeholder_item = item
-        self.placeholder_item.setFlags(Qt.ItemFlag.NoItemFlags)
+        if self.placeholder_item is not None:
+            self.placeholder_item.setFlags(Qt.ItemFlag.NoItemFlags)
 
     def dropEvent(self, event):
         """

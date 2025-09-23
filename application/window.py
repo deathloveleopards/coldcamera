@@ -421,20 +421,40 @@ class MainWindow(QMainWindow):
         # Replace the pipeline object in the widget
         self.pipeline_widget.pipeline = pipeline
 
-        # Rebuild the UI list of effects
+        # Clear old list and rebuild from scratch
         self.pipeline_widget.effects_list.clear()
         self.pipeline_widget._add_placeholder_item()
+
+        # Important: update placeholder reference in the custom EffectsList
+        self.pipeline_widget.effects_list.set_placeholder_item(
+            self.pipeline_widget.placeholder_item
+        )
+
+        # Rebuild each effect widget from the pipeline
         for eff in pipeline.effects:
             # Build widget from an existing effect instance
-            w = EffectWidget.build_from_effect_class(eff.__class__, existing_effect=eff)
+            w = EffectWidget.build_from_effect_class(
+                eff.__class__, existing_effect=eff
+            )
+
+            # Connect signals to the pipeline widget
+            w.params_changed.connect(self.pipeline_widget._on_params_changed)
+            w.delete_requested.connect(
+                lambda *args, ww=w: self.pipeline_widget._delete_effect(ww)
+            )
+
+            # Create and insert list item before placeholder
             item = QListWidgetItem()
             item.setSizeHint(w.sizeHint())
             self.pipeline_widget.effects_list.insertItem(
-                self.pipeline_widget.effects_list.row(self.pipeline_widget.placeholder_item),
-                item
+                self.pipeline_widget.effects_list.row(
+                    self.pipeline_widget.placeholder_item
+                ),
+                item,
             )
             self.pipeline_widget.effects_list.setItemWidget(item, w)
 
+        # Update numbering, placeholder text, and refresh pipeline state
         self.pipeline_widget._update_positions()
         self.pipeline_widget._check_placeholder()
         self.statusBar().showMessage(f"Preset loaded: {file_name}")
