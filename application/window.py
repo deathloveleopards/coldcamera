@@ -12,10 +12,17 @@ from application.classes.pipeline import ProcessingPipeline
 from application.widgets.effect import EffectWidget
 from application.widgets.viewport import ViewportWidget
 from application.widgets.pipeline import PipelineWidget
+from application.utils.local_path import get_user_local_directory
 
 from PIL import Image, ImageSequence
 import numpy as np
 import cv2
+
+import loguru
+import platform
+
+
+APPLICATION_VERSION = "0.1.1"
 
 
 class MainWindow(QMainWindow):
@@ -25,11 +32,19 @@ class MainWindow(QMainWindow):
     Handles opening images, GIFs, and videos, applying the processing pipeline,
     and exporting results.
     """
+
     def __init__(self):
         super().__init__()
 
+        self.initialize_logger()
+        self.logger.info("Start application")
+        self.logger.debug(f"Application version: {APPLICATION_VERSION}")
+        self.logger.debug(f"Platform: {platform.system()} {platform.release()} ({platform.architecture()[0]})")
+
+        self.logger.info("Initialize application window...")
+
         # --- Window setup ---
-        self.setWindowTitle("coldcamera (version alpha)")
+        self.setWindowTitle(f"coldcamera v{APPLICATION_VERSION}")
         self.resize(1200, 800)
 
         self._setup_menu()
@@ -41,11 +56,27 @@ class MainWindow(QMainWindow):
         self.viewport.frame_changed.connect(self.process_and_update)
         self.viewport.frame_request.connect(self.process_and_update)
 
+        self.logger.success("Window initialized!")
+
         # --- Storage for frames and video provider ---
         self.original_frames: list[np.ndarray] | None = None
         self.frames_fps = 10
         self.original_qimg: QImage | None = None
         self.video_provider: VideoFrameProvider | None = None
+
+        self.logger.success("Application is fully initialized!")
+
+    def initialize_logger(self) -> None:
+        """ Method to initialize application logger """
+
+        self.logger: loguru.Logger = loguru.logger
+
+        # Setup logger
+        self.logger.add(
+            str(get_user_local_directory()) + r"\logs\log_{time}.log",
+            format="{time:HH:mm:ss.SS} ({file}) [{level}] {message} {exception}",
+            colorize=True, catch=True, backtrace=True
+        )
 
     # -------------------
     # UI Setup
