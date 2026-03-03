@@ -1,13 +1,11 @@
-
-from PySide6.QtWidgets import (QWidget, QSizePolicy, QLabel,
-                               QVBoxLayout, QHBoxLayout, QPushButton)
-from PySide6.QtCore import Qt, QRectF, QPointF, QTimer, Signal
-from PySide6.QtGui import QPainter, QImage, QWheelEvent, QMouseEvent, QPen, QColor, QPixmap
-
-from application.utils.resource_path import resource_path
+import io
 
 from PIL import Image
-import io
+from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPen, QPixmap, QWheelEvent
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+
+from coldcamera.utils.resource_path import resource_path
 
 
 class ViewportWidget(QWidget):
@@ -18,6 +16,7 @@ class ViewportWidget(QWidget):
         frame_changed (int): Emitted when frame index changes (GIF).
         frame_request (int): Emitted to request a video frame by index.
     """
+
     frame_changed = Signal(int)
     frame_request = Signal(int)
 
@@ -74,10 +73,7 @@ class ViewportWidget(QWidget):
 
         zoom_icon = QLabel()
         zoom_path = resource_path("/application/static/zoom.png")
-        zoom_icon.setPixmap(QPixmap(zoom_path).scaled(13, 13,
-                                                      Qt.AspectRatioMode.KeepAspectRatio,
-                                                      Qt.TransformationMode.SmoothTransformation)
-                            )
+        zoom_icon.setPixmap(QPixmap(zoom_path).scaled(13, 13, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
 
         zoom_layout.addWidget(self.zoom_out_btn)
         zoom_layout.addWidget(zoom_icon)
@@ -97,18 +93,15 @@ class ViewportWidget(QWidget):
         root_layout.setSpacing(0)
 
         top_layout = QHBoxLayout()
-        top_layout.addWidget(zoom_container,
-                             alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        top_layout.addWidget(zoom_container, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         top_layout.addStretch()
         root_layout.addLayout(top_layout)
         root_layout.addStretch()
 
         bottom_layout = QHBoxLayout()
-        bottom_layout.addWidget(self.size_label,
-                                alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
+        bottom_layout.addWidget(self.size_label, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
         bottom_layout.addStretch()
-        bottom_layout.addWidget(self.view_original_btn,
-                                alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
+        bottom_layout.addWidget(self.view_original_btn, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
         root_layout.addLayout(bottom_layout)
 
         self.zoom_in_btn.clicked.connect(lambda: self._adjust_zoom(1.25))
@@ -209,24 +202,14 @@ class ViewportWidget(QWidget):
         painter = QPainter(self)
         painter.fillRect(self.rect(), QColor(22, 23, 26))
         if self.image:
-            target_rect = QRectF(
-                self.offset.x(),
-                self.offset.y(),
-                self.image.width() * self.scale,
-                self.image.height() * self.scale
-            )
+            target_rect = QRectF(self.offset.x(), self.offset.y(), self.image.width() * self.scale, self.image.height() * self.scale)
             self._draw_image(painter)
             self._draw_border(painter, target_rect)
             self._draw_grid(painter, target_rect)
 
     def _draw_image(self, painter: QPainter):
         """Draw the main image."""
-        target_rect = QRectF(
-            self.offset.x(),
-            self.offset.y(),
-            self.image.width() * self.scale,
-            self.image.height() * self.scale
-        )
+        target_rect = QRectF(self.offset.x(), self.offset.y(), self.image.width() * self.scale, self.image.height() * self.scale)
         source_rect = QRectF(0, 0, self.image.width(), self.image.height())
         painter.drawImage(target_rect, self.image, source_rect)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
@@ -236,12 +219,7 @@ class ViewportWidget(QWidget):
         """Draw white border around image."""
         pen = QPen(Qt.GlobalColor.white, 1)
         painter.setPen(pen)
-        border_rect = QRectF(
-            target_rect.left() - 1,
-            target_rect.top() - 1,
-            target_rect.width() + 2,
-            target_rect.height() + 2
-        )
+        border_rect = QRectF(target_rect.left() - 1, target_rect.top() - 1, target_rect.width() + 2, target_rect.height() + 2)
         painter.drawRect(border_rect)
 
     def _draw_grid(self, painter: QPainter, target_rect: QRectF):
@@ -280,10 +258,7 @@ class ViewportWidget(QWidget):
         if center and self.image:
             old_img_x = (center.x() - self.offset.x()) / self.scale
             old_img_y = (center.y() - self.offset.y()) / self.scale
-            self.offset = QPointF(
-                center.x() - old_img_x * new_scale,
-                center.y() - old_img_y * new_scale
-            )
+            self.offset = QPointF(center.x() - old_img_x * new_scale, center.y() - old_img_y * new_scale)
 
         self.scale = new_scale
         self.zoom_label.setText(f"{int(self.scale * 100)}%")
@@ -302,7 +277,7 @@ class ViewportWidget(QWidget):
             delta = event.position() - self.last_mouse_position
             self.offset = QPointF(
                 self.offset.x() + delta.x() if self.scale < 7 else round(self.offset.x() + delta.x()),
-                self.offset.y() + delta.y() if self.scale < 7 else round(self.offset.y() + delta.y())
+                self.offset.y() + delta.y() if self.scale < 7 else round(self.offset.y() + delta.y()),
             )
             self.last_mouse_position = event.position()
             self.update()

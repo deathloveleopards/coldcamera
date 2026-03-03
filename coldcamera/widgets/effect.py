@@ -1,12 +1,8 @@
-
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QFrame, QMenu,
-    QSpinBox, QCheckBox, QComboBox, QPushButton
-)
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
+from PySide6.QtWidgets import QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QMenu, QPushButton, QSlider, QSpinBox, QVBoxLayout, QWidget
 
-from application.widgets.editable_label import EditableLabel
+from coldcamera.widgets.editable_label import EditableLabel
 
 
 class EffectWidget(QFrame):
@@ -137,13 +133,9 @@ class EffectWidget(QFrame):
         slider.setMinimumWidth(120)
 
         value_lbl = EditableLabel(self.effect.get_param(el["name"]))
-        slider.valueChanged.connect(
-            lambda val, n=el["name"], lbl=value_lbl, pt=param_type, sc=scale: self._update_slider(val, n, lbl, pt, sc)
-        )
-        value_lbl.value_edited.connect(
-            lambda val, s=slider, n=el["name"], pt=param_type, sc=scale: self._manual_slider_edit(val, s, n, pt, sc))
-        slider.mouseDoubleClickEvent = lambda ev, s=slider, e=el, lbl=value_lbl, sc=scale, \
-                                              pt=param_type: self._slider_double_click(ev, s, e, lbl, sc, pt)
+        slider.valueChanged.connect(lambda val, n=el["name"], lbl=value_lbl, pt=param_type, sc=scale: self._update_slider(val, n, lbl, pt, sc))
+        value_lbl.value_edited.connect(lambda val, s=slider, n=el["name"], pt=param_type, sc=scale: self._manual_slider_edit(val, s, n, pt, sc))
+        slider.mouseDoubleClickEvent = lambda ev, s=slider, e=el, lbl=value_lbl, sc=scale, pt=param_type: self._slider_double_click(ev, s, e, lbl, sc, pt)
 
         row.addWidget(lbl)
         row.addWidget(slider, 1)
@@ -315,4 +307,3 @@ class EffectWidget(QFrame):
         else:
             effect = effect_class()
         return cls(effect)
-

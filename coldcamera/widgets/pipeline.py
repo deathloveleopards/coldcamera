@@ -1,17 +1,15 @@
-
 from typing import Optional
+
 import numpy as np
-
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, \
-                              QFrame, QListWidgetItem, QSizePolicy, QListWidget
+from PySide6.QtCore import QPoint, QSize, Qt, Signal
 from PySide6.QtGui import QImage
-from PySide6.QtCore import Qt, QPoint, QSize, Signal
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QListWidget, QListWidgetItem, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
-from application.classes.register import EFFECT_REGISTRY
-from application.classes.pipeline import ProcessingPipeline
-from application.widgets.effect import EffectWidget
-from application.widgets.effects_list import EffectsList
-from application.widgets.effect_popup import EffectsPopup
+from coldcamera.classes.pipeline import ProcessingPipeline
+from coldcamera.effects.register import EFFECT_REGISTRY
+from coldcamera.widgets.effect import EffectWidget
+from coldcamera.widgets.effect_popup import EffectsPopup
+from coldcamera.widgets.effects_list import EffectsList
 
 
 class PipelineWidget(QWidget):
@@ -69,7 +67,7 @@ class PipelineWidget(QWidget):
 
         self.effects_list.setStyleSheet("""
             QListWidget::item {
-                border-radius: 5px; 
+                border-radius: 5px;
             }
             QListWidget::item:hover {
                 background: #242626;
@@ -101,9 +99,7 @@ class PipelineWidget(QWidget):
                 padding: 12px;
             }
         """)
-        btn.clicked.connect(
-            lambda *args: self._show_effect_menu(btn.mapToGlobal(QPoint(0, 0)))
-        )
+        btn.clicked.connect(lambda *args: self._show_effect_menu(btn.mapToGlobal(QPoint(0, 0))))
         return btn
 
     # ---------------- Context menu / effect selection ----------------
@@ -205,10 +201,7 @@ class PipelineWidget(QWidget):
 
     def _check_placeholder(self):
         """Update placeholder button text depending on whether effects exist."""
-        has_effects = any(
-            self.effects_list.item(i) is not self.placeholder_item
-            for i in range(self.effects_list.count())
-        )
+        has_effects = any(self.effects_list.item(i) is not self.placeholder_item for i in range(self.effects_list.count()))
         btn = self.effects_list.itemWidget(self.placeholder_item)
         btn.setText("+ Add effect" if has_effects else "+ Add first effect")
 
