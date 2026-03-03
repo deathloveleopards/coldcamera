@@ -1,7 +1,7 @@
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.register import EFFECT_REGISTRY, get_by_name
+from coldcamera.effects.register import EFFECT_REGISTRY, get_by_name
 from coldcamera.types import ImageSequence, Processable
 
 

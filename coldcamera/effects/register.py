@@ -1,21 +1,21 @@
 from typing import Optional, Type
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.effects.blur import BlurEffect
-from coldcamera.effects.ccd_smear import CCDSmearEffect
-from coldcamera.effects.chromatic_abberation import ChromaticAberrationEffect
-from coldcamera.effects.contrast_brightness import ContrastBrightnessEffect
-from coldcamera.effects.exposure import ExposureEffect
-from coldcamera.effects.film_grain import FilmGrainEffect
-from coldcamera.effects.ghosting import GhostingEffect
-from coldcamera.effects.glow import GlowEffect
-from coldcamera.effects.hue import HueEffect
-from coldcamera.effects.jpeg_damage import JpegDamageEffect
-from coldcamera.effects.noise import NoiseEffect
-from coldcamera.effects.rescale import RescaleEffect
-from coldcamera.effects.sharpen import SharpenEffect
-from coldcamera.effects.vibrance import VibranceEffect
-from coldcamera.effects.warmth import WarmthEffect
+from coldcamera.effects.includes.blur import BlurEffect
+from coldcamera.effects.includes.ccd_smear import CCDSmearEffect
+from coldcamera.effects.includes.chromatic_abberation import ChromaticAberrationEffect
+from coldcamera.effects.includes.contrast_brightness import ContrastBrightnessEffect
+from coldcamera.effects.includes.exposure import ExposureEffect
+from coldcamera.effects.includes.film_grain import FilmGrainEffect
+from coldcamera.effects.includes.ghosting import GhostingEffect
+from coldcamera.effects.includes.glow import GlowEffect
+from coldcamera.effects.includes.hue import HueEffect
+from coldcamera.effects.includes.jpeg_damage import JpegDamageEffect
+from coldcamera.effects.includes.noise import NoiseEffect
+from coldcamera.effects.includes.rescale import RescaleEffect
+from coldcamera.effects.includes.sharpen import SharpenEffect
+from coldcamera.effects.includes.vibrance import VibranceEffect
+from coldcamera.effects.includes.warmth import WarmthEffect
 
 EFFECT_REGISTRY = {
     "Color": {
@@ -60,6 +60,7 @@ def get_by_name(name: str) -> Optional[Type[EffectBase]]:
     :param name: The human-readable effect name as in EFFECT_REGISTRY (e.g. "Exposure").
     :return: Effect class, or None if not found.
     """
+
     return _EFFECT_NAME_TO_CLASS.get(name)
 
 
@@ -70,4 +71,5 @@ def get_name_for_class(cls: Type[EffectBase]) -> Optional[str]:
     :param cls: Effect class.
     :return: Display name string if found, else None.
     """
+
     return _EFFECT_CLASS_TO_NAME.get(cls)
