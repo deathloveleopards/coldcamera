@@ -3,7 +3,8 @@ name = "coldcamera"
 version = "0.1.1"
 description = ""
 authors = [
-    {name = "deathloveleopards", email = "deathloveleopards@gmail.com"}
+    {name = "deathloveleopards", email = "deathloveleopards@gmail.com"},
+    {name = "Serhii Chyrva", email = ""}
 ]
 license = {text = "Apache-2.0"}
 readme = "README.md"
@@ -20,10 +21,20 @@ dependencies = [
 ]
 
 
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
-
 [tool.poetry.group.dev.dependencies]
 pyinstaller = "^6.16.0"
 
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project.urls]
+Homepage = "https://github.com/deathloveleopards/coldcamera"
+Repository = "https://github.com/deathloveleopards/coldcamera"
+Issues = "https://github.com/deathloveleopards/coldcamera/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["coldcamera", "coldcamera.*"]
