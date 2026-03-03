@@ -38,3 +38,6 @@ Issues = "https://github.com/deathloveleopards/coldcamera/issues"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["coldcamera", "coldcamera.*"]
+
+[tool.ruff]
+line-length = 160

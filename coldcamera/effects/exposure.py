@@ -1,10 +1,9 @@
-
 import numpy as np
 
-from application.classes.effect import EffectBase
-from application.classes.parameter import EffectParam
-from application.classes.layout import ParameterSlider
-from application.types import Processable
+from coldcamera.classes.effect import EffectBase
+from coldcamera.classes.layout import ParameterSlider
+from coldcamera.classes.parameter import EffectParam
+from coldcamera.types import Processable
 
 
 class ExposureEffect(EffectBase):
@@ -24,4 +23,3 @@ class ExposureEffect(EffectBase):
         img *= self.get_param("exposure")
         img = np.clip(img, 0, 255)
         return img.astype(np.uint8)
-

@@ -1,11 +1,10 @@
-
-import numpy as np
 import cv2
+import numpy as np
 
-from application.classes.effect import EffectBase
-from application.classes.parameter import EffectParam
-from application.classes.layout import ParameterSlider, ParameterCheckBox
-from application.types import Processable
+from coldcamera.classes.effect import EffectBase
+from coldcamera.classes.layout import ParameterCheckBox, ParameterSlider
+from coldcamera.classes.parameter import EffectParam
+from coldcamera.types import Processable
 
 
 class FilmGrainEffect(EffectBase):

@@ -1,14 +1,13 @@
-
-import numpy as np
-import cv2
 import blend_modes as bm
+import cv2
+import numpy as np
 
-from application.classes.effect import EffectBase
-from application.classes.parameter import EffectParam
-from application.classes.layout import ParameterSlider, ParameterDropdown
-from application.utils.add_alpha_channel import add_alpha_channel
-from application.enums import BlendModeType
-from application.types import Processable
+from coldcamera.classes.effect import EffectBase
+from coldcamera.classes.layout import ParameterDropdown, ParameterSlider
+from coldcamera.classes.parameter import EffectParam
+from coldcamera.enums import BlendModeType
+from coldcamera.types import Processable
+from coldcamera.utils.add_alpha_channel import add_alpha_channel
 
 
 class GlowEffect(EffectBase):
@@ -27,9 +26,7 @@ class GlowEffect(EffectBase):
                 ParameterSlider("intensity", "Glow intensity", min_value=0, max_value=5, step=0.1),
                 ParameterSlider("light_threshold", "Light threshold", min_value=0, max_value=1, step=0.01),
                 ParameterSlider("opacity", "Opacity", min_value=0, max_value=1, step=0.05),
-                ParameterDropdown("blend_mode", "Blend mode", enum_type=BlendModeType,
-                                  default=BlendModeType.NORMAL,
-                                  value=BlendModeType.NORMAL),
+                ParameterDropdown("blend_mode", "Blend mode", enum_type=BlendModeType, default=BlendModeType.NORMAL, value=BlendModeType.NORMAL),
             ],
         )
 

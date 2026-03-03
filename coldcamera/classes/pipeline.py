@@ -1,10 +1,8 @@
+from typing import Any, Dict, Iterator, List, Optional, Union
 
-from typing import Optional, List, Dict, Any, Iterator, Union
-
-from application.classes.register import EFFECT_REGISTRY
-from application.classes.effect import EffectBase
-from application.classes.register import get_by_name
-from application.types import Processable, ImageSequence
+from coldcamera.classes.effect import EffectBase
+from coldcamera.classes.register import EFFECT_REGISTRY, get_by_name
+from coldcamera.types import ImageSequence, Processable
 
 
 class ProcessingPipeline:
@@ -62,9 +60,7 @@ class ProcessingPipeline:
     # ------------------------
     # Streaming processing
     # ------------------------
-    def apply_stream(
-        self, input_sequence: Union[Iterator[Processable], ImageSequence.Iterator]
-    ) -> Iterator[Processable]:
+    def apply_stream(self, input_sequence: Union[Iterator[Processable], ImageSequence.Iterator]) -> Iterator[Processable]:
         """
         Generator: apply pipeline to each frame in a sequence.
         Suitable for GIF, MP4, or real-time sources (camera).

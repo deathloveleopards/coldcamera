@@ -1,10 +1,9 @@
-
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Callable, Type, TYPE_CHECKING
 from enum import Enum
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type
 
 if TYPE_CHECKING:
-    from application.classes.effect import EffectBase
+    from coldcamera.classes.effect import EffectBase
 
 
 # ------------------------
@@ -93,12 +92,7 @@ class ParameterSlider(ParameterElementBase):
 
     def to_dict(self) -> Dict[str, Any]:
         base = self._base_dict()
-        base.update({
-            "min": self.min_value,
-            "max": self.max_value,
-            "step": self.step,
-            "default": self.default
-        })
+        base.update({"min": self.min_value, "max": self.max_value, "step": self.step, "default": self.default})
         return base
 
 
@@ -125,11 +119,7 @@ class ParameterSpinBox(ParameterElementBase):
 
     def to_dict(self) -> Dict[str, Any]:
         base = self._base_dict()
-        base.update({
-            "min": self.min_value,
-            "max": self.max_value,
-            "step": self.step
-        })
+        base.update({"min": self.min_value, "max": self.max_value, "step": self.step})
         return base
 
 
@@ -172,12 +162,14 @@ class ParameterDropdown(ParameterElementBase):
 
     def to_dict(self) -> Dict[str, Any]:
         base = self._base_dict()
-        base.update({
-            "options": [e.label for e in self.enum_type],
-            "values": [e.code for e in self.enum_type],
-            "default": self.default.label if self.default else None,
-            "value": self.value.label if self.value else None,
-        })
+        base.update(
+            {
+                "options": [e.label for e in self.enum_type],
+                "values": [e.code for e in self.enum_type],
+                "default": self.default.label if self.default else None,
+                "value": self.value.label if self.value else None,
+            }
+        )
         return base
 
 
@@ -194,8 +186,7 @@ class Separator(LayoutElementBase):
 class Button(LayoutElementBase):
     """Button element."""
 
-    def __init__(self, label: str, *, icon: Optional[str] = None,
-                 hint: Optional[str] = None, callback: Optional[str] = None):
+    def __init__(self, label: str, *, icon: Optional[str] = None, hint: Optional[str] = None, callback: Optional[str] = None):
         self.label = label
         self.icon = icon
         self.hint = hint
@@ -214,8 +205,7 @@ class Button(LayoutElementBase):
 class Group(LayoutElementBase):
     """Group element containing multiple sub-elements."""
 
-    def __init__(self, label: str, *, icon: Optional[str] = None,
-                 hint: Optional[str] = None, items: Optional[List[LayoutElementBase]] = None):
+    def __init__(self, label: str, *, icon: Optional[str] = None, hint: Optional[str] = None, items: Optional[List[LayoutElementBase]] = None):
         self.label = label
         self.icon = icon
         self.hint = hint
@@ -248,9 +238,9 @@ class EffectLayout:
     :param elements: List of layout elements in the effect.
     """
 
-    def __init__(self, parent: "EffectBase", name: str, *,
-                 icon: Optional[str] = None, hint: Optional[str] = None,
-                 elements: Optional[List[LayoutElementBase]] = None):
+    def __init__(
+        self, parent: "EffectBase", name: str, *, icon: Optional[str] = None, hint: Optional[str] = None, elements: Optional[List[LayoutElementBase]] = None
+    ):
         self.parent = parent
         self.name = name
         self.icon = icon

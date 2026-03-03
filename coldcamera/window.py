@@ -1,28 +1,21 @@
-
+import platform
 import sys
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QFrame,
-    QSplitter, QStatusBar, QFileDialog, QListWidgetItem
-)
+
+import cv2
+import loguru
+import numpy as np
+from PIL import Image, ImageSequence
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QImage
+from PySide6.QtWidgets import QApplication, QFileDialog, QFrame, QListWidgetItem, QMainWindow, QSplitter, QStatusBar, QVBoxLayout, QWidget
 
-from application.classes.video_provider import VideoFrameProvider
-from application.classes.pipeline import ProcessingPipeline
-from application.widgets.effect import EffectWidget
-from application.widgets.viewport import ViewportWidget
-from application.widgets.pipeline import PipelineWidget
-from application.utils.local_path import get_user_local_directory
-
-from PIL import Image, ImageSequence
-import numpy as np
-import cv2
-
-import loguru
-import platform
-
-
-APPLICATION_VERSION = "0.1.1"
+from coldcamera.classes.pipeline import ProcessingPipeline
+from coldcamera.classes.video_provider import VideoFrameProvider
+from coldcamera.config import APPLICATION_VERSION
+from coldcamera.utils.local_path import get_user_local_directory
+from coldcamera.widgets.effect import EffectWidget
+from coldcamera.widgets.pipeline import PipelineWidget
+from coldcamera.widgets.viewport import ViewportWidget
 
 
 class MainWindow(QMainWindow):
@@ -67,7 +60,7 @@ class MainWindow(QMainWindow):
         self.logger.success("Application is fully initialized!")
 
     def initialize_logger(self) -> None:
-        """ Method to initialize application logger """
+        """Method to initialize application logger"""
 
         self.logger: loguru.Logger = loguru.logger
 
@@ -75,7 +68,9 @@ class MainWindow(QMainWindow):
         self.logger.add(
             str(get_user_local_directory()) + r"\logs\log_{time}.log",
             format="{time:HH:mm:ss.SS} ({file}) [{level}] {message} {exception}",
-            colorize=True, catch=True, backtrace=True
+            colorize=True,
+            catch=True,
+            backtrace=True,
         )
 
     # -------------------
@@ -199,15 +194,19 @@ class MainWindow(QMainWindow):
             if arr is None:
                 return
 
-            orig_qimg = QImage(arr.data, arr.shape[1], arr.shape[0],
-                               arr.strides[0], QImage.Format.Format_RGBA8888).copy()
+            orig_qimg = QImage(arr.data, arr.shape[1], arr.shape[0], arr.strides[0], QImage.Format.Format_RGBA8888).copy()
             self.viewport.original_frame_qimg = orig_qimg
 
             processed = self.pipeline_widget.process_frame(arr)
             if processed.ndim == 3 and processed.shape[2] == 3:
                 processed = cv2.cvtColor(processed, cv2.COLOR_RGB2RGBA)
-            qimg = QImage(processed.data, processed.shape[1], processed.shape[0],
-                          processed.strides[0], QImage.Format.Format_RGBA8888).copy()
+            qimg = QImage(
+                processed.data,
+                processed.shape[1],
+                processed.shape[0],
+                processed.strides[0],
+                QImage.Format.Format_RGBA8888,
+            ).copy()
             self.viewport.processed_qimage = qimg
 
             if self.viewport.showing_original:
@@ -220,15 +219,13 @@ class MainWindow(QMainWindow):
         if self.original_frames is not None and 0 <= self.viewport.current_frame < len(self.original_frames):
             arr = self.original_frames[self.viewport.current_frame]
 
-            orig_qimg = QImage(arr.data, arr.shape[1], arr.shape[0],
-                               arr.strides[0], QImage.Format.Format_RGBA8888).copy()
+            orig_qimg = QImage(arr.data, arr.shape[1], arr.shape[0], arr.strides[0], QImage.Format.Format_RGBA8888).copy()
             self.viewport.original_frame_qimg = orig_qimg
 
             processed = self.pipeline_widget.process_frame(arr)
             if processed.ndim == 3 and processed.shape[2] == 3:
                 processed = cv2.cvtColor(processed, cv2.COLOR_RGB2RGBA)
-            qimg = QImage(processed.data, processed.shape[1], processed.shape[0],
-                          processed.strides[0], QImage.Format.Format_RGBA8888).copy()
+            qimg = QImage(processed.data, processed.shape[1], processed.shape[0], processed.strides[0], QImage.Format.Format_RGBA8888).copy()
             self.viewport.processed_qimage = qimg
 
             if self.viewport.showing_original:
@@ -241,9 +238,7 @@ class MainWindow(QMainWindow):
     # -------------------
     def open_image(self):
         """Open a single image file."""
-        file_name, _ = QFileDialog.getOpenFileName(
-            self, "Open image", "", "Images (*.png *.jpg *.jpeg *.bmp)"
-        )
+        file_name, _ = QFileDialog.getOpenFileName(self, "Open image", "", "Images (*.png *.jpg *.jpeg *.bmp)")
         if file_name:
             qimg = self.viewport._load_image(file_name)
 
@@ -260,9 +255,7 @@ class MainWindow(QMainWindow):
 
     def open_gif(self):
         """Open a GIF file and extract frames."""
-        file_name, _ = QFileDialog.getOpenFileName(
-            self, "Open GIF", "", "GIF (*.gif)"
-        )
+        file_name, _ = QFileDialog.getOpenFileName(self, "Open GIF", "", "GIF (*.gif)")
         if not file_name:
             return
 
@@ -287,9 +280,7 @@ class MainWindow(QMainWindow):
 
     def open_video(self):
         """Open a video file for playback via VideoFrameProvider."""
-        file_name, _ = QFileDialog.getOpenFileName(
-            self, "Open video", "", "Videos (*.mp4 *.avi *.mov)"
-        )
+        file_name, _ = QFileDialog.getOpenFileName(self, "Open video", "", "Videos (*.mp4 *.avi *.mov)")
         if not file_name:
             return
 
@@ -314,9 +305,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("No processed image to export.")
             return
 
-        file_name, _ = QFileDialog.getSaveFileName(
-            self, "Save image", "", "PNG (*.png);;JPEG (*.jpg *.jpeg);;BMP (*.bmp)"
-        )
+        file_name, _ = QFileDialog.getSaveFileName(self, "Save image", "", "PNG (*.png);;JPEG (*.jpg *.jpeg);;BMP (*.bmp)")
         if file_name:
             pil_img = Image.fromqimage(self.viewport.processed_qimage)
             pil_img = pil_img.convert("RGB")
@@ -329,9 +318,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("No GIF to export.")
             return
 
-        file_name, _ = QFileDialog.getSaveFileName(
-            self, "Save GIF", "", "GIF (*.gif)"
-        )
+        file_name, _ = QFileDialog.getSaveFileName(self, "Save GIF", "", "GIF (*.gif)")
         if not file_name:
             return
 
@@ -346,14 +333,7 @@ class MainWindow(QMainWindow):
                 raise ValueError(f"Unsupported channel count: {processed.shape[2]}")
             processed_frames.append(pil_img)
 
-        processed_frames[0].save(
-            file_name,
-            save_all=True,
-            append_images=processed_frames[1:],
-            duration=int(1000 / self.frames_fps),
-            loop=0,
-            optimize=False,
-        )
+        processed_frames[0].save(file_name, save_all=True, append_images=processed_frames[1:], duration=int(1000 / self.frames_fps), loop=0, optimize=False)
         self.statusBar().showMessage(f"GIF exported: {file_name}")
 
     def export_video(self):
@@ -362,9 +342,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("No video to export.")
             return
 
-        file_name, _ = QFileDialog.getSaveFileName(
-            self, "Save video", "", "MP4 (*.mp4);;AVI (*.avi)"
-        )
+        file_name, _ = QFileDialog.getSaveFileName(self, "Save video", "", "MP4 (*.mp4);;AVI (*.avi)")
         if not file_name:
             return
 
@@ -378,8 +356,7 @@ class MainWindow(QMainWindow):
             return
         h, w, _ = frame.shape
 
-        fourcc = cv2.VideoWriter_fourcc(*"XVID") if file_name.lower().endswith(".avi") \
-            else cv2.VideoWriter_fourcc(*"mp4v")
+        fourcc = cv2.VideoWriter_fourcc(*"XVID") if file_name.lower().endswith(".avi") else cv2.VideoWriter_fourcc(*"mp4v")
         out = cv2.VideoWriter(file_name, fourcc, fps, (w, h))
 
         for idx in range(frame_count):
@@ -415,9 +392,7 @@ class MainWindow(QMainWindow):
 
         :raises IOError: If writing the file fails.
         """
-        file_name, _ = QFileDialog.getSaveFileName(
-            self, "Save preset", "", "JSON (*.json)"
-        )
+        file_name, _ = QFileDialog.getSaveFileName(self, "Save preset", "", "JSON (*.json)")
         if not file_name:
             return
 
@@ -437,9 +412,7 @@ class MainWindow(QMainWindow):
 
         :raises ValueError: If the preset file contains unknown or invalid effects.
         """
-        file_name, _ = QFileDialog.getOpenFileName(
-            self, "Load preset", "", "JSON (*.json)"
-        )
+        file_name, _ = QFileDialog.getOpenFileName(self, "Load preset", "", "JSON (*.json)")
         if not file_name:
             return
 
@@ -457,32 +430,21 @@ class MainWindow(QMainWindow):
         self.pipeline_widget._add_placeholder_item()
 
         # Important: update placeholder reference in the custom EffectsList
-        self.pipeline_widget.effects_list.set_placeholder_item(
-            self.pipeline_widget.placeholder_item
-        )
+        self.pipeline_widget.effects_list.set_placeholder_item(self.pipeline_widget.placeholder_item)
 
         # Rebuild each effect widget from the pipeline
         for eff in pipeline.effects:
             # Build widget from an existing effect instance
-            w = EffectWidget.build_from_effect_class(
-                eff.__class__, existing_effect=eff
-            )
+            w = EffectWidget.build_from_effect_class(eff.__class__, existing_effect=eff)
 
             # Connect signals to the pipeline widget
             w.params_changed.connect(self.pipeline_widget._on_params_changed)
-            w.delete_requested.connect(
-                lambda *args, ww=w: self.pipeline_widget._delete_effect(ww)
-            )
+            w.delete_requested.connect(lambda *args, ww=w: self.pipeline_widget._delete_effect(ww))
 
             # Create and insert list item before placeholder
             item = QListWidgetItem()
             item.setSizeHint(w.sizeHint())
-            self.pipeline_widget.effects_list.insertItem(
-                self.pipeline_widget.effects_list.row(
-                    self.pipeline_widget.placeholder_item
-                ),
-                item,
-            )
+            self.pipeline_widget.effects_list.insertItem(self.pipeline_widget.effects_list.row(self.pipeline_widget.placeholder_item), item)
             self.pipeline_widget.effects_list.setItemWidget(item, w)
 
         # Update numbering, placeholder text, and refresh pipeline state
@@ -496,11 +458,7 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
 
-    qdarktheme.setup_theme(custom_colors={
-        "background": "#191a1c",
-        "primary": "#ffffff",
-        "border": "#2a2b2b"
-    })
+    qdarktheme.setup_theme(custom_colors={"background": "#191a1c", "primary": "#ffffff", "border": "#2a2b2b"})
 
     window = MainWindow()
     window.show()

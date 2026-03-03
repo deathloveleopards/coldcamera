@@ -1,12 +1,11 @@
-
 import numpy as np
 from PIL import Image, ImageOps
 
-from application.classes.effect import EffectBase
-from application.classes.parameter import EffectParam
-from application.classes.layout import ParameterDropdown, ParameterCheckBox
-from application.types import Processable
-from application.enums import RescaleResolution
+from coldcamera.classes.effect import EffectBase
+from coldcamera.classes.layout import ParameterCheckBox, ParameterDropdown
+from coldcamera.classes.parameter import EffectParam
+from coldcamera.enums import RescaleResolution
+from coldcamera.types import Processable
 
 
 class RescaleEffect(EffectBase):

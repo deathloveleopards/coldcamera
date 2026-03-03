@@ -1,8 +1,7 @@
-
-from typing import Optional, List, Dict, Any, Type, Union
 from enum import Enum
+from typing import Any, Dict, List, Optional, Type, Union
 
-from application.exceptions import InvalidValue
+from coldcamera.exceptions import InvalidValue
 
 
 class EffectParam:
@@ -59,9 +58,7 @@ class EffectParam:
             try:
                 return self.param_type(value)
             except ValueError:
-                raise InvalidValue(
-                    f"{self.name} must be one of: {[e.value for e in self.param_type]}"
-                )
+                raise InvalidValue(f"{self.name} must be one of: {[e.value for e in self.param_type]}")
 
         if not isinstance(value, self.param_type):
             raise InvalidValue(f"{self.name} must be of type {self.param_type.__name__}")

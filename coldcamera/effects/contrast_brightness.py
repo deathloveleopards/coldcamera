@@ -1,10 +1,9 @@
-
 import numpy as np
 
-from application.classes.effect import EffectBase
-from application.classes.parameter import EffectParam
-from application.classes.layout import ParameterSlider
-from application.types import Processable
+from coldcamera.classes.effect import EffectBase
+from coldcamera.classes.layout import ParameterSlider
+from coldcamera.classes.parameter import EffectParam
+from coldcamera.types import Processable
 
 
 class ContrastBrightnessEffect(EffectBase):

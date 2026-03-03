@@ -1,12 +1,12 @@
-
 import io
+
 import numpy as np
 from PIL import Image
 
-from application.classes.effect import EffectBase
-from application.classes.parameter import EffectParam
-from application.classes.layout import ParameterSpinBox
-from application.types import Processable
+from coldcamera.classes.effect import EffectBase
+from coldcamera.classes.layout import ParameterSpinBox
+from coldcamera.classes.parameter import EffectParam
+from coldcamera.types import Processable
 
 
 class JpegDamageEffect(EffectBase):

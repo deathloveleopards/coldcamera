@@ -1,10 +1,9 @@
-
 import numpy as np
 
-from application.classes.effect import EffectBase
-from application.classes.parameter import EffectParam
-from application.classes.layout import ParameterSlider
-from application.types import Processable
+from coldcamera.classes.effect import EffectBase
+from coldcamera.classes.layout import ParameterSlider
+from coldcamera.classes.parameter import EffectParam
+from coldcamera.types import Processable
 
 
 class WarmthEffect(EffectBase):
@@ -22,7 +21,7 @@ class WarmthEffect(EffectBase):
     def apply(self, input_data: Processable) -> Processable:
         img = np.array(input_data).astype(np.float32)
         warmth_val = self.get_param("warmth") / 100.0
-        img[..., 0] *= (1.0 + warmth_val)  # reduce blue
-        img[..., 2] *= (1.0 - warmth_val)  # increase red
+        img[..., 0] *= 1.0 + warmth_val  # reduce blue
+        img[..., 2] *= 1.0 - warmth_val  # increase red
         img = np.clip(img, 0, 255)
         return img.astype(np.uint8)

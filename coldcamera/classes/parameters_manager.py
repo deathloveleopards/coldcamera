@@ -1,8 +1,7 @@
+from typing import Any, Dict, List, Optional, Union
 
-from typing import Optional, Union, Dict, List, Any
-
-from application.classes.parameter import EffectParam
-from application.exceptions import InvalidValue
+from coldcamera.classes.parameter import EffectParam
+from coldcamera.exceptions import InvalidValue
 
 
 class EffectParamManager:

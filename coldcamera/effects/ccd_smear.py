@@ -1,12 +1,12 @@
-
-import numpy as np
-import cv2
 import random
 
-from application.classes.effect import EffectBase
-from application.classes.parameter import EffectParam
-from application.classes.layout import ParameterSlider, ParameterCheckBox
-from application.types import Processable
+import cv2
+import numpy as np
+
+from coldcamera.classes.effect import EffectBase
+from coldcamera.classes.layout import ParameterCheckBox, ParameterSlider
+from coldcamera.classes.parameter import EffectParam
+from coldcamera.types import Processable
 
 
 class CCDSmearEffect(EffectBase):
@@ -70,7 +70,7 @@ class CCDSmearEffect(EffectBase):
                     smear_col = cv2.GaussianBlur(smear_col, (smear_h_blur, 1), 0)
 
                 center_y = bright_rows.mean()
-                falloff_mask = np.exp(-((np.arange(h) - center_y) / (h * smear_falloff / 2))**2)
+                falloff_mask = np.exp(-(((np.arange(h) - center_y) / (h * smear_falloff / 2)) ** 2))
                 smear_col *= falloff_mask.reshape(h, 1)
 
                 if use_mask:

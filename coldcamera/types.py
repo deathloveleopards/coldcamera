@@ -1,12 +1,8 @@
+from typing import TypeAlias, Union
 
-from typing import Union
-
-from PIL import Image, ImageSequence
 from numpy import ndarray
+from PIL import Image, ImageSequence
 
-
-""" Processable images, arrays & sequences """
-
-ImageLike = Union[Image.Image, ndarray]
-SequenceLike = ImageSequence.Iterator
-Processable = Union[ImageLike, SequenceLike]
+ImageLike: TypeAlias = Union[Image.Image, ndarray]
+SequenceLike: TypeAlias = ImageSequence.Iterator
+Processable: TypeAlias = Union[ImageLike, SequenceLike]

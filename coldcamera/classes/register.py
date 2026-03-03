@@ -1,23 +1,21 @@
+from typing import Optional, Type
 
-from typing import Type, Optional
-
-from application.classes.effect import EffectBase
-from application.effects.exposure import ExposureEffect
-from application.effects.contrast_brightness import ContrastBrightnessEffect
-from application.effects.hue import HueEffect
-from application.effects.warmth import WarmthEffect
-from application.effects.vibrance import VibranceEffect
-from application.effects.sharpen import SharpenEffect
-from application.effects.blur import BlurEffect
-from application.effects.rescale import RescaleEffect
-from application.effects.noise import NoiseEffect
-from application.effects.glow import GlowEffect
-from application.effects.film_grain import FilmGrainEffect
-from application.effects.chromatic_abberation import ChromaticAberrationEffect
-from application.effects.jpeg_damage import JpegDamageEffect
-from application.effects.ghosting import GhostingEffect
-from application.effects.ccd_smear import CCDSmearEffect
-
+from coldcamera.classes.effect import EffectBase
+from coldcamera.effects.blur import BlurEffect
+from coldcamera.effects.ccd_smear import CCDSmearEffect
+from coldcamera.effects.chromatic_abberation import ChromaticAberrationEffect
+from coldcamera.effects.contrast_brightness import ContrastBrightnessEffect
+from coldcamera.effects.exposure import ExposureEffect
+from coldcamera.effects.film_grain import FilmGrainEffect
+from coldcamera.effects.ghosting import GhostingEffect
+from coldcamera.effects.glow import GlowEffect
+from coldcamera.effects.hue import HueEffect
+from coldcamera.effects.jpeg_damage import JpegDamageEffect
+from coldcamera.effects.noise import NoiseEffect
+from coldcamera.effects.rescale import RescaleEffect
+from coldcamera.effects.sharpen import SharpenEffect
+from coldcamera.effects.vibrance import VibranceEffect
+from coldcamera.effects.warmth import WarmthEffect
 
 EFFECT_REGISTRY = {
     "Color": {

@@ -1,13 +1,11 @@
-
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any, Callable
+from typing import Any, Callable, Dict, List, Optional
 
-from application.classes.parameter import EffectParam
-from application.classes.parameters_manager import EffectParamManager
-from application.classes.layout import EffectLayout, LayoutElementBase
-from application.exceptions import NotImplementedEffect
-from application.types import Processable
-
+from coldcamera.classes.layout import EffectLayout, LayoutElementBase
+from coldcamera.classes.parameter import EffectParam
+from coldcamera.classes.parameters_manager import EffectParamManager
+from coldcamera.exceptions import NotImplementedEffect
+from coldcamera.types import Processable
 
 
 class EffectBase(ABC):
@@ -68,7 +66,10 @@ class EffectBase(ABC):
 
         # Initialize layout with reference to this effect
         self.layout = EffectLayout(
-            parent=self, name=name, icon=icon, hint=hint,
+            parent=self,
+            name=name,
+            icon=icon,
+            hint=hint,
             elements=layout_elements,
         )
 

@@ -1,19 +1,18 @@
-
-import numpy as np
 import blend_modes as bm
+import numpy as np
 
-from application.classes.effect import EffectBase
-from application.classes.parameter import EffectParam
-from application.classes.layout import ParameterSlider, ParameterDropdown
-from application.classes.shader_processor import ShaderProcessorBase
-from application.utils.add_alpha_channel import add_alpha_channel
-from application.enums import BlendModeType
-from application.types import Processable
+from coldcamera.classes.effect import EffectBase
+from coldcamera.classes.layout import ParameterDropdown, ParameterSlider
+from coldcamera.classes.parameter import EffectParam
+from coldcamera.classes.shader_processor import ShaderProcessorBase
+from coldcamera.enums import BlendModeType
+from coldcamera.types import Processable
+from coldcamera.utils.add_alpha_channel import add_alpha_channel
 
 
 class BlurShaderProcessor(ShaderProcessorBase):
     def fragment_shader(self) -> str:
-        return '''
+        return """
         #version 330 core
         uniform sampler2D tDiffuse;
         uniform float amount;
@@ -38,11 +37,11 @@ class BlurShaderProcessor(ShaderProcessorBase):
 
             fragColor = sum / float(NUM_SAMPLES);
         }
-        '''
+        """
 
     def set_uniforms(self, **kwargs):
-        self.prog['amount'].value = float(kwargs.get('amount', 0.0))
-        self.prog['angle'].value = float(kwargs.get('angle', 0.0))
+        self.prog["amount"].value = float(kwargs.get("amount", 0.0))
+        self.prog["angle"].value = float(kwargs.get("angle", 0.0))
 
 
 class BlurEffect(EffectBase):
@@ -59,9 +58,7 @@ class BlurEffect(EffectBase):
                 ParameterSlider("amount", "Blur amount", min_value=0, max_value=100, step=1),
                 ParameterSlider("angle", "Blur angle", min_value=-180, max_value=180, step=1),
                 ParameterSlider("opacity", "Opacity", min_value=0, max_value=1, step=0.05),
-                ParameterDropdown("blend_mode", "Blend mode", enum_type=BlendModeType,
-                                  default=BlendModeType.NORMAL,
-                                  value=BlendModeType.NORMAL),
+                ParameterDropdown("blend_mode", "Blend mode", enum_type=BlendModeType, default=BlendModeType.NORMAL, value=BlendModeType.NORMAL),
             ],
         )
         self.processor = BlurShaderProcessor()
