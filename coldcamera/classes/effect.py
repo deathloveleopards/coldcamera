@@ -1,11 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
-from coldcamera.classes.layout import EffectLayout, LayoutElementBase
-from coldcamera.classes.parameter import EffectParam
+from coldcamera.classes.layout import EffectLayout
 from coldcamera.classes.parameters_manager import EffectParamManager
 from coldcamera.exceptions import NotImplementedEffect
-from coldcamera.types import Processable
+from coldcamera.types import EffectParams, LayoutElements, Processable
 
 
 class EffectBase(ABC):
@@ -23,9 +22,6 @@ class EffectBase(ABC):
     :param hint: Optional description or tooltip for the effect.
     """
 
-    # ------------------------
-    # Class-level callbacks
-    # ------------------------
     _class_callbacks: Dict[str, Callable] = {}
 
     @classmethod
@@ -49,29 +45,14 @@ class EffectBase(ABC):
 
         return decorator
 
-    # ------------------------
-    # Initialization
-    # ------------------------
     def __init__(
-        self,
-        name: str,
-        *,
-        params: Optional[List[EffectParam]] = None,
-        layout_elements: Optional[List["LayoutElementBase"]] = None,
-        icon: Optional[str] = None,
-        hint: Optional[str] = None,
+        self, name: str, *, params: EffectParams = None, layout_elements: LayoutElements = None, icon: Optional[str] = None, hint: Optional[str] = None
     ):
         self.name = name
         self.params = EffectParamManager(params)
 
         # Initialize layout with reference to this effect
-        self.layout = EffectLayout(
-            parent=self,
-            name=name,
-            icon=icon,
-            hint=hint,
-            elements=layout_elements,
-        )
+        self.layout = EffectLayout(parent=self, name=name, icon=icon, hint=hint, elements=layout_elements)
 
         self.enabled = True
 
@@ -79,9 +60,6 @@ class EffectBase(ABC):
         for cb_name, func in self._class_callbacks.items():
             self.layout._callbacks[cb_name] = func.__get__(self, self.__class__)
 
-    # ------------------------
-    # Abstract methods
-    # ------------------------
     @abstractmethod
     def apply(self, input_data: Processable) -> Processable:
         """
@@ -91,33 +69,29 @@ class EffectBase(ABC):
         :return: Processed image or sequence in the same format.
         :raises NotImplementedEffect: If not overridden in subclass.
         """
-        raise NotImplementedEffect
 
-    # ------------------------
-    # Serialization / Deserialization
-    # ------------------------
-    def to_dict(self) -> Dict[str, Any]:
+        raise NotImplementedEffect(f"{self.__class__.__name__} does not implement apply()")
+
+    def to_dictionary(self) -> Dict[str, Any]:
         """
         Serialize the effect with only parameter values.
 
         :return: Dictionary containing effect type, name, and parameters.
         """
+
         # Local import to avoid circular dependency
-        from application.classes.register import get_name_for_class
+        from coldcamera.effects.register import get_name_for_class
 
         display_name = get_name_for_class(self.__class__)
 
+        # Fallback to class name if no display name is found
         if display_name is None:
-            display_name = self.__class__.__name__  # fallback
+            display_name = self.__class__.__name__
 
-        return {
-            "type": display_name,
-            "name": self.name,
-            "params": self.params.to_dict(),
-        }
+        return {"type": display_name, "name": self.name, "params": self.params.to_dict()}
 
     @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> "EffectBase":
+    def from_dictionary(cls, d: Dict[str, Any]) -> "EffectBase":
         """
         Reconstruct effect from dictionary.
 
@@ -125,33 +99,36 @@ class EffectBase(ABC):
         :return: Restored EffectBase subclass instance.
         :raises InvalidValue: If parameter values are invalid.
         """
+
         effect = cls(d["name"])
         effect.params.from_dict(d.get("params", {}))
         return effect
 
-    # ------------------------
-    # Parameter access
-    # ------------------------
-    def set_param(self, name: str, value: Any) -> None:
+    def set_parameter(self, name: str, value: Any) -> None:
         """
         Safely update a parameter value with validation.
 
         :param name: Parameter identifier.
         :param value: New value for the parameter.
         """
+
         self.params.set_parameter(name, value)
 
-    def get_param(self, name: str) -> Any:
+    def get_parameter(self, name: str) -> Any:
         """
         Get the current value of a parameter.
 
         :param name: Parameter identifier.
         :return: Current parameter value.
         """
+
         return self.params.get_parameter(name)
 
-    # ------------------------
-    # Representation
-    # ------------------------
     def __repr__(self) -> str:
+        """
+        Return a string representation of the effect.
+
+        :return: String representation of the effect.
+        """
+
         return f"<{self.__class__.__name__} name={self.name!r}, params={self.params}>"
