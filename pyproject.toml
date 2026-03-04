@@ -4,7 +4,7 @@ version = "0.1.1"
 description = ""
 authors = [
     {name = "deathloveleopards", email = "deathloveleopards@gmail.com"},
-    {name = "Serhii Chyrva", email = ""}
+    {name = "Serhii Chyrva", email = "serhiichyrva@hotmail.com"}
 ]
 license = {text = "Apache-2.0"}
 readme = "README.md"
