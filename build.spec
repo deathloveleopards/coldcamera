@@ -2,11 +2,11 @@
 block_cipher = None
 
 a = Analysis(
-    ['application/window.py'],
+    ['coldcamera/window.py'],
     pathex=[],
     binaries=[],
     datas=[
-        ('application/static/zoom.png', 'application/static'),
+        ('coldcamera/static/zoom.png', 'coldcamera/static'),
     ],
     hiddenimports=[
         "PySide6",
