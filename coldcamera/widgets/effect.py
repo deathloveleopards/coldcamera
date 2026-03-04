@@ -129,10 +129,10 @@ class EffectWidget(QFrame):
         slider = QSlider(Qt.Orientation.Horizontal)
         slider.setRange(int(el["min"] * scale), int(el["max"] * scale))
         slider.setSingleStep(int(el["step"] * scale))
-        slider.setValue(int(self.effect.get_param(el["name"]) * scale))
+        slider.setValue(int(self.effect.get_parameter(el["name"]) * scale))
         slider.setMinimumWidth(120)
 
-        value_lbl = EditableLabel(self.effect.get_param(el["name"]))
+        value_lbl = EditableLabel(self.effect.get_parameter(el["name"]))
         slider.valueChanged.connect(lambda val, n=el["name"], lbl=value_lbl, pt=param_type, sc=scale: self._update_slider(val, n, lbl, pt, sc))
         value_lbl.value_edited.connect(lambda val, s=slider, n=el["name"], pt=param_type, sc=scale: self._manual_slider_edit(val, s, n, pt, sc))
         slider.mouseDoubleClickEvent = lambda ev, s=slider, e=el, lbl=value_lbl, sc=scale, pt=param_type: self._slider_double_click(ev, s, e, lbl, sc, pt)
@@ -144,13 +144,13 @@ class EffectWidget(QFrame):
 
     def _update_slider(self, val, name, label, param_type, scale):
         real_val = val / scale if param_type is float else int(val / scale)
-        self.effect.set_param(name, real_val)
+        self.effect.set_parameter(name, real_val)
         label.setText(f"{real_val:.2f}" if param_type is float else str(real_val))
         self.params_changed.emit()
 
     def _manual_slider_edit(self, val, slider, name, param_type, scale):
         slider.setValue(int(val * scale))
-        self.effect.set_param(name, param_type(val))
+        self.effect.set_parameter(name, param_type(val))
         self.params_changed.emit()
 
     def _slider_double_click(self, event, slider, el, label, scale, param_type):
@@ -158,7 +158,7 @@ class EffectWidget(QFrame):
             default_val = el.get("default", 0)
             slider.setValue(int(default_val * scale))
             real_val = param_type(default_val)
-            self.effect.set_param(el["name"], real_val)
+            self.effect.set_parameter(el["name"], real_val)
             label.setText(f"{real_val:.2f}" if param_type is float else str(real_val))
             self.params_changed.emit()
 
@@ -171,7 +171,7 @@ class EffectWidget(QFrame):
         spin = QSpinBox()
         spin.setRange(el["min"], el["max"])
         spin.setSingleStep(el["step"])
-        spin.setValue(self.effect.get_param(el["name"]))
+        spin.setValue(self.effect.get_parameter(el["name"]))
         spin.setMinimumWidth(80)
         spin.valueChanged.connect(lambda val, n=el["name"]: self._update_spinbox(val, n))
 
@@ -180,14 +180,14 @@ class EffectWidget(QFrame):
         self.right_panel.addLayout(row)
 
     def _update_spinbox(self, val, name):
-        self.effect.set_param(name, val)
+        self.effect.set_parameter(name, val)
         self.params_changed.emit()
 
     def _build_checkbox(self, el):
         row = QHBoxLayout()
         row.setSpacing(8)
         checkbox = QCheckBox(el["label"])
-        checkbox.setChecked(bool(self.effect.get_param(el["name"])))
+        checkbox.setChecked(bool(self.effect.get_parameter(el["name"])))
         checkbox.toggled.connect(self._make_checkbox_callback(el["name"], el.get("callback"), checkbox))
         row.addWidget(checkbox)
         self.right_panel.addLayout(row)
@@ -195,7 +195,7 @@ class EffectWidget(QFrame):
     def _make_checkbox_callback(self, param_name, cb_name, checkbox):
         def callback(value: bool):
             checkbox.blockSignals(True)
-            self.effect.set_param(param_name, value)
+            self.effect.set_parameter(param_name, value)
             if cb_name:
                 try:
                     self.effect.layout.trigger(cb_name, value)
@@ -225,7 +225,7 @@ class EffectWidget(QFrame):
 
     def _update_dropdown(self, index, name, values):
         if 0 <= index < len(values):
-            self.effect.set_param(name, values[index])
+            self.effect.set_parameter(name, values[index])
             self.params_changed.emit()
 
     def _build_separator(self):

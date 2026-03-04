@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, Optional
 
-from coldcamera.classes.layout import EffectLayout
+from coldcamera.classes.layout.layout import EffectLayout
 from coldcamera.classes.layout.types import EffectParams, LayoutElements
 from coldcamera.classes.parameters_manager import EffectParamManager
 from coldcamera.exceptions import NotImplementedEffect

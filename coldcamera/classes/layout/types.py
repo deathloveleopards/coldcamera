@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from enum import Enum
 from typing import List, Optional, TypeAlias
 
-from coldcamera.classes.layout import LayoutElementBase
+from coldcamera.classes.layout.base import LayoutElementBase
 from coldcamera.classes.parameter import EffectParam
 
 EffectParams: TypeAlias = Optional[List[EffectParam]]

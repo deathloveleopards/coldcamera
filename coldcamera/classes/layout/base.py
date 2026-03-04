@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from coldcamera.classes.layout.types import ParameterWidgetType
+if TYPE_CHECKING:
+    from coldcamera.classes.layout.types import ParameterWidgetType
 
 
 class LayoutElementBase(ABC):
@@ -34,7 +35,7 @@ class ParameterElementBase(LayoutElementBase, ABC):
     label: str
     hint: Optional[str]
 
-    widget: ParameterWidgetType
+    widget: "ParameterWidgetType"
     type_name: str
 
     def __init__(self, name: str, label: str, *, hint: Optional[str] = None):
