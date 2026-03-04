@@ -16,14 +16,28 @@ class EffectParamManager:
     """
 
     def __init__(self, params: Optional[Union[Dict[str, EffectParam], List[EffectParam]]] = None):
+        """
+        Initialize an EffectParamManager.
+
+        :param params: Optional initial parameters, either:
+                       - dict[str, EffectParam]
+                       - list[EffectParam]
+        """
+
         self._params: Dict[str, EffectParam] = {}
+
         if isinstance(params, dict):
             self._params = params
+
         elif isinstance(params, list) or isinstance(params, tuple):
             self._params = {p.name: p for p in params}
 
     def add_parameter(self, param: EffectParam) -> None:
-        """Add a new parameter to the manager."""
+        """
+        Add a new parameter to the manager.
+
+        :param param: Parameter to add.
+        """
 
         self._params[param.name] = param
 
@@ -53,12 +67,16 @@ class EffectParamManager:
             raise KeyError(f"Unknown parameter: {name}")
         self._params[name].set_value(value)
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Serialize all parameters to a dictionary."""
+    def to_dictionary(self) -> Dict[str, Any]:
+        """
+        Serialize all parameters to a dictionary.
 
-        return {k: v.to_dict() for k, v in self._params.items()}
+        :return: Dictionary of serialized parameters.
+        """
 
-    def from_dict(self, d: Dict[str, Any]) -> None:
+        return {k: v.to_dictionary() for k, v in self._params.items()}
+
+    def from_dictionary(self, d: Dict[str, Any]) -> None:
         """
         Restore parameters from a dictionary.
 
@@ -69,16 +87,35 @@ class EffectParamManager:
         for k, v in d.items():
             if k in self._params:
                 try:
-                    self._params[k] = EffectParam.from_dict(k, v, self._params[k])
+                    self._params[k] = EffectParam.from_dictionary(k, v, self._params[k])
                 except InvalidValue as e:
                     raise InvalidValue(f"Invalid value for param '{k}': {e}")
 
     def __getitem__(self, name: str) -> EffectParam:
+        """
+        Get a parameter by name.
+
+        :param name: Parameter identifier.
+        :return: Parameter instance.
+        """
+
         return self._params[name]
 
     def __iter__(self):
+        """
+        Iterate over all parameters.
+
+        :return: Iterator over (name, parameter) pairs.
+        """
+
         return iter(self._params.items())
 
     def __repr__(self) -> str:
+        """
+        Return a string representation of the parameters manager.
+
+        :return: String representation.
+        """
+
         params_str = ", ".join(f"{k}={v.get_value()!r}" for k, v in self._params.items())
         return f"<EffectParamManager {params_str}>"

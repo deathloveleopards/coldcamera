@@ -21,14 +21,7 @@ class EffectParam:
     value: Any
     default: Optional[Any]
 
-    def __init__(
-        self,
-        name: str,
-        param_type: Union[Type, Type[Enum]],
-        value: Any,
-        *,
-        default: Optional[Any] = None,
-    ):
+    def __init__(self, name: str, param_type: Union[Type, Type[Enum]], value: Any, *, default: Optional[Any] = None):
         """
         Initialize an EffectParam.
 
@@ -95,7 +88,7 @@ class EffectParam:
             return [e.value for e in self.param_type]
         return None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dictionary(self) -> Dict[str, Any]:
         """
         Serialize the parameter to a dictionary-like representation.
 
@@ -107,7 +100,7 @@ class EffectParam:
         return self.value
 
     @classmethod
-    def from_dict(cls, name: str, value: Any, definition: "EffectParam") -> "EffectParam":
+    def from_dictionary(cls, name: str, value: Any, definition: "EffectParam") -> "EffectParam":
         """
         Restore an EffectParam from serialized data.
 

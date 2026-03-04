@@ -2,9 +2,10 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, Optional
 
 from coldcamera.classes.layout import EffectLayout
+from coldcamera.classes.layout.types import EffectParams, LayoutElements
 from coldcamera.classes.parameters_manager import EffectParamManager
 from coldcamera.exceptions import NotImplementedEffect
-from coldcamera.types import EffectParams, LayoutElements, Processable
+from coldcamera.types import Processable
 
 
 class EffectBase(ABC):
@@ -48,6 +49,16 @@ class EffectBase(ABC):
     def __init__(
         self, name: str, *, params: EffectParams = None, layout_elements: LayoutElements = None, icon: Optional[str] = None, hint: Optional[str] = None
     ):
+        """
+        Initialize the effect.
+
+        :param name: Name of the effect.
+        :param params: Parameters for the effect.
+        :param layout_elements: Layout elements for the effect.
+        :param icon: Icon for the effect visible in the UI.
+        :param hint: Hint for the effect visible in the UI.
+        """
+
         self.name = name
         self.params = EffectParamManager(params)
 
@@ -88,7 +99,7 @@ class EffectBase(ABC):
         if display_name is None:
             display_name = self.__class__.__name__
 
-        return {"type": display_name, "name": self.name, "params": self.params.to_dict()}
+        return {"type": display_name, "name": self.name, "params": self.params.to_dictionary()}
 
     @classmethod
     def from_dictionary(cls, d: Dict[str, Any]) -> "EffectBase":
@@ -101,7 +112,7 @@ class EffectBase(ABC):
         """
 
         effect = cls(d["name"])
-        effect.params.from_dict(d.get("params", {}))
+        effect.params.from_dictionary(d.get("params", {}))
         return effect
 
     def set_parameter(self, name: str, value: Any) -> None:
