@@ -17,7 +17,8 @@ dependencies = [
     "pyqtdarktheme (>=2.1.0,<3.0.0)",
     "moderngl (>=5.12.0,<6.0.0)",
     "opencv-python (>=4.12.0.88,<5.0.0.0)",
-    "blend-modes (>=2.2.0,<3.0.0)"
+    "blend-modes (>=2.2.0,<3.0.0)",
+    "pedalboard (>=0.9.22,<0.10.0)"
 ]
 
 

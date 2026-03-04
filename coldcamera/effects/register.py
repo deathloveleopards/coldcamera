@@ -13,6 +13,14 @@ from coldcamera.effects.includes.hue import HueEffect
 from coldcamera.effects.includes.jpeg_damage import JpegDamageEffect
 from coldcamera.effects.includes.noise import NoiseEffect
 from coldcamera.effects.includes.rescale import RescaleEffect
+from coldcamera.effects.includes.s_chorus import ChorusEffect
+from coldcamera.effects.includes.s_delay import DelayEffect
+from coldcamera.effects.includes.s_distortion import DistortionEffect
+from coldcamera.effects.includes.s_highpass import HighPassEffect
+from coldcamera.effects.includes.s_limiter import LimiterEffect
+from coldcamera.effects.includes.s_lowpass import LowPassEffect
+from coldcamera.effects.includes.s_phaser import PhaserEffect
+from coldcamera.effects.includes.s_reverb import ReverbEffect
 from coldcamera.effects.includes.sharpen import SharpenEffect
 from coldcamera.effects.includes.vibrance import VibranceEffect
 from coldcamera.effects.includes.warmth import WarmthEffect
@@ -40,6 +48,16 @@ EFFECT_REGISTRY = {
         "Blur": BlurEffect,
         "Film Grain": FilmGrainEffect,
         "Noise": NoiseEffect,
+    },
+    "Sonarify": {
+        "Chorus": ChorusEffect,
+        "Delay": DelayEffect,
+        "Distortion": DistortionEffect,
+        "High Pass": HighPassEffect,
+        "Limiter": LimiterEffect,
+        "Low Pass": LowPassEffect,
+        "Phaser": PhaserEffect,
+        "Reverb": ReverbEffect,
     },
 }
 
