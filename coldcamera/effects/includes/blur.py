@@ -11,6 +11,8 @@ from coldcamera.utils.add_alpha_channel import add_alpha_channel
 
 
 class BlurShaderProcessor(ShaderProcessorBase):
+    author: str = "deathloveleopards"
+
     def fragment_shader(self) -> str:
         return """
         #version 330 core
@@ -66,13 +68,13 @@ class BlurEffect(EffectBase):
     def apply(self, input_data: Processable) -> Processable:
         img_rgb = np.array(input_data).astype(np.uint8)
 
-        if self.get_param("amount") <= 0:
+        if self.get_parameter("amount") <= 0:
             return img_rgb
 
         blurred = self.processor.process(
             img_rgb,
-            amount=self.get_param("amount"),
-            angle=np.radians(self.get_param("angle")),
+            amount=self.get_parameter("amount"),
+            angle=np.radians(self.get_parameter("angle")),
         ).astype(np.float32)
 
         base = add_alpha_channel(img_rgb).astype(np.float32)
@@ -80,7 +82,7 @@ class BlurEffect(EffectBase):
         base /= 255.0
         blurred /= 255.0
 
-        blend_func = getattr(bm, self.get_param("blend_mode"), bm.normal)
-        blended = blend_func(base, blurred, self.get_param("opacity"))
+        blend_func = getattr(bm, self.get_parameter("blend_mode"), bm.normal)
+        blended = blend_func(base, blurred, self.get_parameter("opacity"))
 
         return (blended * 255).astype(np.uint8)

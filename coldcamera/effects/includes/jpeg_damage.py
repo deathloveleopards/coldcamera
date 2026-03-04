@@ -10,15 +10,13 @@ from coldcamera.types import Processable
 
 
 class JpegDamageEffect(EffectBase):
+    author: str = "deathloveleopards"
+
     def __init__(self, name="JPEG Damage"):
         super().__init__(
             name,
-            params=[
-                EffectParam("quality", int, 75, default=75),
-            ],
-            layout_elements=[
-                ParameterSpinBox("quality", "Quality", min_value=1, max_value=100, step=1),
-            ],
+            params=[EffectParam("quality", int, 75, default=75)],
+            layout_elements=[ParameterSpinBox("quality", "Quality", min_value=1, max_value=100, step=1)],
         )
 
     def apply(self, input_data: Processable) -> Processable:
@@ -28,7 +26,7 @@ class JpegDamageEffect(EffectBase):
             img = img.convert("RGB")
 
         buffer = io.BytesIO()
-        img.save(buffer, format="JPEG", quality=self.get_param("quality"))
+        img.save(buffer, format="JPEG", quality=self.get_parameter("quality"))
         buffer.seek(0)
 
         damaged_img = Image.open(buffer).convert("RGBA")

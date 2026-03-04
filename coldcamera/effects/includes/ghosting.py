@@ -8,6 +8,8 @@ from coldcamera.types import Processable
 
 
 class GhostingEffect(EffectBase):
+    author: str = "deathloveleopards"
+
     def __init__(self, name="Ghosting"):
         super().__init__(
             name,
@@ -28,10 +30,10 @@ class GhostingEffect(EffectBase):
     def apply(self, input_data: Processable) -> Processable:
         img = np.array(input_data).astype(np.float32)
 
-        strength = float(self.get_param("strength"))
-        offset_x = int(self.get_param("offset_x"))
-        offset_y = int(self.get_param("offset_y"))
-        blur_radius = int(self.get_param("blur_radius"))
+        strength = float(self.get_parameter("strength"))
+        offset_x = int(self.get_parameter("offset_x"))
+        offset_y = int(self.get_parameter("offset_y"))
+        blur_radius = int(self.get_parameter("blur_radius"))
 
         if strength <= 0:
             return img.astype(np.uint8)

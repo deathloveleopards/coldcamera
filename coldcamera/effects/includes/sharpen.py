@@ -8,6 +8,8 @@ from coldcamera.types import Processable
 
 
 class SharpenEffect(EffectBase):
+    author: str = "deathloveleopards"
+
     def __init__(self, name="Sharpen"):
         super().__init__(
             name,
@@ -24,14 +26,14 @@ class SharpenEffect(EffectBase):
     def apply(self, input_data: Processable) -> Processable:
         img = np.array(input_data).astype(np.float32)
 
-        radius = int(self.get_param("radius"))
+        radius = int(self.get_parameter("radius"))
         if radius % 2 == 0:
             radius += 1
         blurred = cv2.GaussianBlur(img, (radius, radius), 0)
 
         mask = img - blurred
 
-        sharpened = img + self.get_param("amount") * mask
+        sharpened = img + self.get_parameter("amount") * mask
 
         sharpened = np.clip(sharpened, 0, 255)
         return sharpened.astype(np.uint8)

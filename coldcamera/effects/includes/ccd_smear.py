@@ -10,6 +10,8 @@ from coldcamera.types import Processable
 
 
 class CCDSmearEffect(EffectBase):
+    author: str = "deathloveleopards"
+
     def __init__(self, name="CCD Smear"):
         super().__init__(
             name,
@@ -44,16 +46,16 @@ class CCDSmearEffect(EffectBase):
 
         h, w, _ = img_rgb.shape
 
-        threshold = self.get_param("smear_threshold")
-        smear_strength = self.get_param("smear_strength")
-        smear_h_blur = self.get_param("smear_h_blur")
+        threshold = self.get_parameter("smear_threshold")
+        smear_strength = self.get_parameter("smear_strength")
+        smear_h_blur = self.get_parameter("smear_h_blur")
         smear_color = (
-            self.get_param("smear_color_r"),
-            self.get_param("smear_color_g"),
-            self.get_param("smear_color_b"),
+            self.get_parameter("smear_color_r"),
+            self.get_parameter("smear_color_g"),
+            self.get_parameter("smear_color_b"),
         )
-        smear_falloff = self.get_param("smear_falloff")
-        use_mask = self.get_param("use_mask")
+        smear_falloff = self.get_parameter("smear_falloff")
+        use_mask = self.get_parameter("use_mask")
 
         img_gray = cv2.cvtColor(img_rgb.astype(np.uint8), cv2.COLOR_RGB2GRAY)
         _, bright_pixels_mask = cv2.threshold(img_gray, threshold, 255, cv2.THRESH_BINARY)

@@ -7,6 +7,8 @@ from coldcamera.types import Processable
 
 
 class ContrastBrightnessEffect(EffectBase):
+    author: str = "deathloveleopards"
+
     def __init__(self, name="Contrast/Brightness"):
         super().__init__(
             name,
@@ -22,8 +24,8 @@ class ContrastBrightnessEffect(EffectBase):
 
     def apply(self, input_data: Processable) -> Processable:
         img = np.array(input_data).astype(np.float32)
-        contrast = self.get_param("contrast")
-        brightness = self.get_param("brightness")
+        contrast = self.get_parameter("contrast")
+        brightness = self.get_parameter("brightness")
         img = (img - 127.5) * contrast + 127.5 + brightness
         img = np.clip(img, 0, 255)
         return img.astype(np.uint8)

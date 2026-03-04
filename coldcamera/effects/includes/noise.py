@@ -10,6 +10,8 @@ from coldcamera.utils.add_alpha_channel import add_alpha_channel
 
 
 class NoiseEffect(EffectBase):
+    author: str = "deathloveleopards"
+
     def __init__(self, name="Noise"):
         super().__init__(
             name,
@@ -22,20 +24,20 @@ class NoiseEffect(EffectBase):
             layout_elements=[
                 ParameterSlider("strength", "Noise strength", min_value=0, max_value=100, step=1),
                 ParameterSlider("opacity", "Opacity", min_value=0, max_value=1, step=0.05),
-                ParameterDropdown("type", "Noise type", enum_type=NoiseType, default=NoiseType.GAUSSIAN, value=NoiseType.GAUSSIAN),
-                ParameterDropdown("blend_mode", "Blend mode", enum_type=BlendModeType, default=BlendModeType.LIGHTEN_ONLY, value=BlendModeType.LIGHTEN_ONLY),
+                ParameterDropdown("type", "Noise type", enum_type=NoiseType, default=NoiseType.GAUSSIAN, value=NoiseType.GAUSSIAN),  # pyright: ignore[reportArgumentType]
+                ParameterDropdown("blend_mode", "Blend mode", enum_type=BlendModeType, default=BlendModeType.LIGHTEN_ONLY, value=BlendModeType.LIGHTEN_ONLY),  # pyright: ignore[reportArgumentType]
             ],
         )
 
     def apply(self, input_data: Processable) -> Processable:
         img = np.array(input_data).astype(np.float32)
-        noise_param = self.get_param("strength")
+        noise_param = self.get_parameter("strength")
         if noise_param <= 0:
             return img.astype(np.uint8)
 
         h, w = img.shape[:2]
         noise_rgb = np.zeros((h, w, 3), dtype=np.float32)
-        noise_type = self.get_param("type")
+        noise_type = self.get_parameter("type")
 
         if noise_type == "gaussian":
             noise_rgb = np.random.normal(0, noise_param, (h, w, 3)).astype(np.float32)
@@ -60,6 +62,6 @@ class NoiseEffect(EffectBase):
         img_rgba = add_alpha_channel(img)
 
         bg, fg = img_rgba / 255.0, noise_rgba / 255.0
-        blend_func = getattr(bm, self.get_param("blend_mode"), bm.normal)
-        blended = blend_func(bg, fg, self.get_param("opacity"))
+        blend_func = getattr(bm, self.get_parameter("blend_mode"), bm.normal)
+        blended = blend_func(bg, fg, self.get_parameter("opacity"))
         return (blended * 255).astype(np.uint8)

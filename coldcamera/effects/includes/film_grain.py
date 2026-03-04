@@ -8,6 +8,8 @@ from coldcamera.types import Processable
 
 
 class FilmGrainEffect(EffectBase):
+    author: str = "deathloveleopards"
+
     def __init__(self, name="Film Grain"):
         super().__init__(
             name,
@@ -27,9 +29,9 @@ class FilmGrainEffect(EffectBase):
         img = np.array(input_data).astype(np.float32)
         h, w, c = img.shape
 
-        strength = self.get_param("grain_strength")
-        size = self.get_param("grain_size")
-        color_grain = self.get_param("color_grain")
+        strength = self.get_parameter("grain_strength")
+        size = self.get_parameter("grain_size")
+        color_grain = self.get_parameter("color_grain")
 
         if strength <= 0:
             return img.astype(np.uint8)

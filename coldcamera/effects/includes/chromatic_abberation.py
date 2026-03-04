@@ -9,6 +9,8 @@ from coldcamera.types import Processable
 
 
 class ChromaticAberrationEffect(EffectBase):
+    author: str = "deathloveleopards"
+
     def __init__(self, name="Chromatic Aberration"):
         super().__init__(
             name,
@@ -24,8 +26,8 @@ class ChromaticAberrationEffect(EffectBase):
                     "ab_type",
                     "Channel combo",
                     enum_type=ChromaticAberrationType,
-                    default=ChromaticAberrationType.RED_BLUE,
-                    value=ChromaticAberrationType.RED_BLUE,
+                    default=ChromaticAberrationType.RED_BLUE,  # pyright: ignore[reportArgumentType]
+                    value=ChromaticAberrationType.RED_BLUE,  # pyright: ignore[reportArgumentType]
                 ),
             ],
         )
@@ -36,11 +38,11 @@ class ChromaticAberrationEffect(EffectBase):
         return shifted
 
     def apply(self, input_data: Processable) -> Processable:
-        shift = float(self.get_param("shift"))
-        angle = np.deg2rad(float(self.get_param("rotation")))
-        ab_type = self.get_param("ab_type")
+        shift = float(self.get_parameter("shift"))
+        angle = np.deg2rad(float(self.get_parameter("rotation")))
+        ab_type = self.get_parameter("ab_type")
 
-        img = np.clip(input_data, 0, 255).astype(np.uint8)
+        img = np.clip(input_data, 0, 255).astype(np.uint8)  # pyright: ignore[reportCallIssue, reportArgumentType]
         b, g, r = cv2.split(img[..., :3])
 
         r_new, g_new, b_new = r.copy(), g.copy(), b.copy()

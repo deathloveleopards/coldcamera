@@ -8,6 +8,8 @@ from coldcamera.types import Processable
 
 
 class VibranceEffect(EffectBase):
+    author: str = "deathloveleopards"
+
     def __init__(self, name="Vibrance"):
         super().__init__(
             name,
@@ -24,8 +26,8 @@ class VibranceEffect(EffectBase):
     def apply(self, input_data: Processable) -> Processable:
         img = np.array(input_data).astype(np.float32) / 255.0
 
-        vibrance_level = self.get_param("vibrance")
-        saturation_level = self.get_param("saturation")
+        vibrance_level = self.get_parameter("vibrance")
+        saturation_level = self.get_parameter("saturation")
 
         hsv_img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
         h, s, v = cv2.split(hsv_img)

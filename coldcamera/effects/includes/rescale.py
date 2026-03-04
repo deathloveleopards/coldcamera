@@ -9,6 +9,8 @@ from coldcamera.types import Processable
 
 
 class RescaleEffect(EffectBase):
+    author: str = "deathloveleopards"
+
     def __init__(self, name="Rescale"):
         super().__init__(
             name,
@@ -21,16 +23,16 @@ class RescaleEffect(EffectBase):
                     "resolution",
                     "Resolution",
                     enum_type=RescaleResolution,
-                    default=RescaleResolution.R640x480,
-                    value=RescaleResolution.R640x480,
+                    default=RescaleResolution.R640x480,  # pyright: ignore[reportArgumentType]
+                    value=RescaleResolution.R640x480,  # pyright: ignore[reportArgumentType]
                 ),
                 ParameterCheckBox("adaptive", "Adaptive orientation"),
             ],
         )
 
     def apply(self, input_data: Processable) -> Processable:
-        resolution_code = self.get_param("resolution")
-        adaptive = self.get_param("adaptive")
+        resolution_code = self.get_parameter("resolution")
+        adaptive = self.get_parameter("adaptive")
 
         try:
             w_str, h_str = resolution_code.split("x")

@@ -11,6 +11,8 @@ from coldcamera.utils.add_alpha_channel import add_alpha_channel
 
 
 class GlowEffect(EffectBase):
+    author: str = "deathloveleopards"
+
     def __init__(self, name="Glow"):
         super().__init__(
             name,
@@ -26,16 +28,16 @@ class GlowEffect(EffectBase):
                 ParameterSlider("intensity", "Glow intensity", min_value=0, max_value=5, step=0.1),
                 ParameterSlider("light_threshold", "Light threshold", min_value=0, max_value=1, step=0.01),
                 ParameterSlider("opacity", "Opacity", min_value=0, max_value=1, step=0.05),
-                ParameterDropdown("blend_mode", "Blend mode", enum_type=BlendModeType, default=BlendModeType.NORMAL, value=BlendModeType.NORMAL),
+                ParameterDropdown("blend_mode", "Blend mode", enum_type=BlendModeType, default=BlendModeType.NORMAL, value=BlendModeType.NORMAL),  # pyright: ignore[reportArgumentType]
             ],
         )
 
     def apply(self, input_data: Processable) -> Processable:
         img = np.array(input_data).astype(np.float32)
 
-        radius = self.get_param("radius")
-        intensity = self.get_param("intensity")
-        threshold = self.get_param("light_threshold")
+        radius = self.get_parameter("radius")
+        intensity = self.get_parameter("intensity")
+        threshold = self.get_parameter("light_threshold")
 
         if radius <= 0 or intensity <= 0:
             return img.astype(np.uint8)
@@ -47,12 +49,7 @@ class GlowEffect(EffectBase):
 
         bright_areas = img[..., :3] * mask
 
-        glow_effect = cv2.GaussianBlur(
-            bright_areas,
-            (0, 0),
-            sigmaX=radius,
-            sigmaY=radius,
-        )
+        glow_effect = cv2.GaussianBlur(bright_areas, (0, 0), sigmaX=radius, sigmaY=radius)  # pyright: ignore[reportCallIssue, reportArgumentType]
 
         glow_effect *= intensity
 
@@ -60,7 +57,7 @@ class GlowEffect(EffectBase):
         img_rgba = add_alpha_channel(img)
 
         bg, fg = img_rgba / 255.0, glow_rgba / 255.0
-        blend_func = getattr(bm, self.get_param("blend_mode"), bm.lighten_only)
+        blend_func = getattr(bm, self.get_parameter("blend_mode"), bm.lighten_only)
 
-        blended = blend_func(bg, fg, self.get_param("opacity"))
+        blended = blend_func(bg, fg, self.get_parameter("opacity"))
         return np.clip(blended * 255, 0, 255).astype(np.uint8)
