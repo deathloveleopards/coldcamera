@@ -42,8 +42,8 @@ class BlurShaderProcessor(ShaderProcessorBase):
         """
 
     def set_uniforms(self, **kwargs):
-        self.prog["amount"].value = float(kwargs.get("amount", 0.0))
-        self.prog["angle"].value = float(kwargs.get("angle", 0.0))
+        self.prog["amount"].value = float(kwargs.get("amount", 0.0))  # pyright: ignore[reportAttributeAccessIssue]
+        self.prog["angle"].value = float(kwargs.get("angle", 0.0))  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class BlurEffect(EffectBase):
@@ -60,7 +60,7 @@ class BlurEffect(EffectBase):
                 ParameterSlider("amount", "Blur amount", min_value=0, max_value=100, step=1),
                 ParameterSlider("angle", "Blur angle", min_value=-180, max_value=180, step=1),
                 ParameterSlider("opacity", "Opacity", min_value=0, max_value=1, step=0.05),
-                ParameterDropdown("blend_mode", "Blend mode", enum_type=BlendModeType, default=BlendModeType.NORMAL, value=BlendModeType.NORMAL),
+                ParameterDropdown("blend_mode", "Blend mode", enum_type=BlendModeType, default=BlendModeType.NORMAL, value=BlendModeType.NORMAL),  # pyright: ignore[reportArgumentType]
             ],
         )
         self.processor = BlurShaderProcessor()
