@@ -14,12 +14,17 @@ jobs:
         include:
           - os: windows-latest
             platform: windows
+            arch: x64
             ext: zip
+
           - os: ubuntu-latest
             platform: linux
+            arch: x64
             ext: tar.gz
+
           - os: macos-latest
             platform: macos
+            arch: arm64
             ext: zip
 
     steps:
@@ -50,12 +55,14 @@ jobs:
       - name: Package artifact
         run: |
           VERSION=${{ steps.get_version.outputs.version }}
-          FILENAME=coldcamera_portable-v${VERSION}-${{ matrix.platform }}-x64
+          FILENAME=coldcamera_portable-v${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}
+
+          cd dist
 
           if [ "${{ matrix.ext }}" = "zip" ]; then
-            7z a "$FILENAME.zip" ./dist/coldcamera*
+            7z a "../$FILENAME.zip" coldcamera
           else
-            tar -czf "$FILENAME.tar.gz" -C dist .
+            tar -czf "../$FILENAME.tar.gz" coldcamera
           fi
         shell: bash
 
