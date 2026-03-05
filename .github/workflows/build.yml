@@ -55,7 +55,7 @@ jobs:
           if [ "${{ matrix.ext }}" = "zip" ]; then
             7z a "$FILENAME.zip" ./dist/coldcamera*
           else
-            tar -czf "$FILENAME.tar.gz" -C dist coldcamera
+            tar -czf "$FILENAME.tar.gz" -C dist .
           fi
         shell: bash
 
