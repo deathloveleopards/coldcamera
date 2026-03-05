@@ -54,7 +54,7 @@ jobs:
           FILENAME=coldcamera_portable-v${VERSION}-${{ matrix.platform }}-x64
 
           if [ "${{ matrix.ext }}" = "zip" ]; then
-            7z a "$FILENAME.zip" ./dist/coldcamera/*
+            7z a "$FILENAME.zip" ./dist/coldcamera*
           else
             tar -czf "$FILENAME.tar.gz" -C dist coldcamera
           fi
