@@ -72,6 +72,6 @@ jobs:
           tag_name: v${{ steps.get_version.outputs.version }}
           name: Release v${{ steps.get_version.outputs.version }}
           files: |
-            coldcamera_portable-v${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-x64.${{ matrix.ext }}
+            coldcamera_portable-v${{ steps.get_version.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.ext }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
