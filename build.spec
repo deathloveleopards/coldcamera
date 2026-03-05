@@ -21,6 +21,8 @@ a = Analysis(
         "moderngl",
         "cv2",
         "blend_modes",
+        "pedalboard",
+        "pedalboard._pedalboard",
     ] + pedalboard_hidden,
     hookspath=[],
     runtime_hooks=[],
