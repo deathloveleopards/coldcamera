@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QListWidget, QListWidgetItem,
 from coldcamera.classes.effect import EffectBase
 from coldcamera.classes.pipeline import ProcessingPipeline
 from coldcamera.effects.descriptors import EFFECT_DESCRIPTORS
+from coldcamera.logger import logger
 from coldcamera.widgets.effect import EffectWidget
 from coldcamera.widgets.effect_popup import EffectsPopup
 from coldcamera.widgets.effects_list import EffectsList
@@ -158,6 +159,7 @@ class PipelineWidget(QWidget):
         self.pipeline.add_effect(effect_widget.effect)
         self._sync_pipeline_order()
         self._check_placeholder()
+        logger.info(f"Effect added: {effect_name}")
         self.pipeline_changed.emit()
 
     def add_existing_effect(self, effect: EffectBase) -> EffectWidget:
@@ -188,9 +190,10 @@ class PipelineWidget(QWidget):
         if item is self.placeholder_item:
             return
 
-        self.effects_list.takeItem(current_row)
         widget = self.effects_list.itemWidget(item)
+        self.effects_list.takeItem(current_row)
         if widget:
+            logger.info(f"Effect removed: {widget.effect.name}")
             widget.setParent(None)
             widget.deleteLater()
 
@@ -254,6 +257,7 @@ class PipelineWidget(QWidget):
                 continue
             w = self.effects_list.itemWidget(item)
             if w is widget:
+                logger.info(f"Effect removed: {widget.effect.name}")
                 self.effects_list.takeItem(i)
                 w.setParent(None)
                 w.deleteLater()
@@ -267,6 +271,7 @@ class PipelineWidget(QWidget):
         """Handle drag-and-drop reorder."""
 
         self._sync_pipeline_order()
+        logger.info(f"Effect order changed: {[effect.name for effect in self.pipeline.effects]}")
         self.pipeline_changed.emit()
 
     def _sync_pipeline_order(self) -> None:

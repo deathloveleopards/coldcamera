@@ -33,6 +33,7 @@ from coldcamera.config import APPLICATION_VERSION
 from coldcamera.classes.pipeline import ProcessingPipeline
 from coldcamera.core.media_sources import MediaKind
 from coldcamera.core.pipeline_snapshot import PipelineSnapshot
+from coldcamera.logger import logger
 from coldcamera.widgets.pipeline import PipelineWidget
 from coldcamera.widgets.progress_dialog import ProgressDialog
 from coldcamera.widgets.viewport import ViewportWidget
@@ -123,6 +124,7 @@ class MainWindow(QMainWindow):
         self._export_task: str | None = None
         self._export_dialog: ProgressDialog | None = None
         self._current_frame_index = 0
+        self._close_logged = False
 
     # ==================================================================
     # UI construction
@@ -310,6 +312,10 @@ class MainWindow(QMainWindow):
                 self._tasks.cancel(self._active_preview_task)
             self.viewport.stop_playback()
             media_info = self.app.set_media(media_source)
+            logger.info(
+                f"Media opened in GUI: kind={media_info.kind}, path={media_info.path}, "
+                f"frames={media_info.frame_count}, fps={media_info.fps}"
+            )
             self._active_load_task = None
             self._current_frame_index = 0
             self.viewport.original_qimage = None
@@ -355,6 +361,7 @@ class MainWindow(QMainWindow):
             snapshot = result
             self.app.set_pipeline(snapshot)
             self.pipeline_widget.load_pipeline(snapshot.build_pipeline())
+            logger.info(f"Preset loaded in GUI: {task_context[1]}")
             self._process_and_display()
             self.statusBar().showMessage(f"Preset loaded: {task_context[1]}")
 
@@ -365,8 +372,11 @@ class MainWindow(QMainWindow):
         kind = task_context[0]
         error = error_msg.split("\n", 1)[0]
         if kind == "load":
-            if task_id == self._active_load_task:
-                self._active_load_task = None
+            if task_id != self._active_load_task:
+                return
+            self._active_load_task = None
+            _kind, path, media_kind = task_context
+            logger.error(f"Media open failed in GUI: kind={media_kind}, path={path}, error={error}")
             self.statusBar().showMessage(f"Open failed: {error}")
         elif kind == "preview":
             if task_id == self._active_preview_task:
@@ -374,16 +384,27 @@ class MainWindow(QMainWindow):
                 media_info = task_context[3]
                 if media_info is not None and media_info.kind != "image":
                     self.viewport.finish_frame_request()
+                if media_info is not None:
+                    logger.error(
+                        f"Preview failed: kind={media_info.kind}, frame={task_context[2] + 1}, "
+                        f"path={media_info.path}, error={error}"
+                    )
                 self.statusBar().showMessage(f"Preview failed: {error}")
         elif kind in {"export-gif", "export-video"}:
+            logger.error(f"{task_context[2]} export failed: path={task_context[1]}, error={error}")
             if self._export_dialog is not None:
                 self._export_dialog.mark_error(error)
             self.statusBar().showMessage(f"Export failed: {error}")
         elif kind == "export-image":
+            logger.error(f"Image export failed: path={task_context[1]}, error={error}")
             self.statusBar().showMessage(f"Export failed: {error}")
+        elif kind == "save-preset":
+            logger.error(f"Preset save failed: path={task_context[1]}, error={error}")
+            self.statusBar().showMessage(f"Preset operation failed: {error}")
         elif kind == "load-preset":
             if task_id == self._active_preset_load_task:
                 self._active_preset_load_task = None
+                logger.error(f"Preset load failed: path={task_context[1]}, error={error}")
                 self.statusBar().showMessage(f"Preset operation failed: {error}")
         else:
             self.statusBar().showMessage(f"Preset operation failed: {error}")
@@ -395,6 +416,7 @@ class MainWindow(QMainWindow):
     def _on_task_cancelled(self, task_id: str) -> None:
         context = self._task_kinds.pop(task_id, None)
         if context and context[0] in {"export-gif", "export-video"} and self._export_dialog is not None:
+            logger.info(f"{context[2]} export cancelled: path={context[1]}")
             self._export_dialog.mark_error("Export cancelled")
 
     def _on_task_finished(self, task_id: str) -> None:
@@ -436,6 +458,7 @@ class MainWindow(QMainWindow):
         task_id = self._new_task_id("load")
         self._active_load_task = task_id
         self._task_kinds[task_id] = ("load", path, kind)
+        logger.info(f"Opening media in GUI: kind={kind}, path={path}")
         self.statusBar().showMessage(f"Opening {kind}: {path}")
         application = self.app
         self._tasks.submit(task_id, lambda cancellation, _progress, app=application: app.prepare_media(path, kind))
@@ -461,6 +484,7 @@ class MainWindow(QMainWindow):
 
         task_id = self._new_task_id("export-image")
         self._task_kinds[task_id] = ("export-image", path)
+        logger.info(f"Image export started: path={path}")
         self.statusBar().showMessage("Exporting image...")
         application = self.app
         self._tasks.submit(task_id, lambda cancellation, _progress, app=application: app.export_image_from_snapshot(snapshot, path, cancellation=cancellation))
@@ -480,6 +504,7 @@ class MainWindow(QMainWindow):
         self._export_task = task_id
         self._export_dialog = progress_dialog
         self._task_kinds[task_id] = ("export-gif", path, "GIF")
+        logger.info(f"GIF export started: path={path}")
         progress_dialog.cancelled.connect(lambda tid=task_id: self._tasks.cancel(tid))
         application = self.app
         self._tasks.submit(task_id, lambda cancellation, progress, app=application: app.export_gif_from_snapshot(snapshot, path, progress=progress, cancellation=cancellation))
@@ -502,6 +527,7 @@ class MainWindow(QMainWindow):
         self._export_task = task_id
         self._export_dialog = progress_dialog
         self._task_kinds[task_id] = ("export-video", path, "Video")
+        logger.info(f"Video export started: path={path}")
         progress_dialog.cancelled.connect(lambda tid=task_id: self._tasks.cancel(tid))
         application = self.app
         self._tasks.submit(task_id, lambda cancellation, progress, app=application: app.export_video_from_snapshot(snapshot, path, progress=progress, cancellation=cancellation))
@@ -520,6 +546,7 @@ class MainWindow(QMainWindow):
         snapshot = PipelineSnapshot.from_pipeline(self.pipeline_widget.pipeline)
         task_id = self._new_task_id("save-preset")
         self._task_kinds[task_id] = ("save-preset", path)
+        logger.info(f"Preset save started: path={path}")
         self.statusBar().showMessage("Saving preset...")
         application = self.app
         self._tasks.submit(task_id, lambda _cancellation, _progress, app=application: app.save_preset_snapshot(snapshot, path))
@@ -534,6 +561,7 @@ class MainWindow(QMainWindow):
         task_id = self._new_task_id("load-preset")
         self._active_preset_load_task = task_id
         self._task_kinds[task_id] = ("load-preset", path)
+        logger.info(f"Preset load started: path={path}")
         self.statusBar().showMessage("Loading preset...")
         application = self.app
         self._tasks.submit(task_id, lambda _cancellation, _progress, app=application: app.read_preset(path))
@@ -546,4 +574,7 @@ class MainWindow(QMainWindow):
         """Cancel backend tasks before the GUI is destroyed."""
         self._tasks.cancel_all()
         self._tasks.wait_for_done(2000)
+        if not self._close_logged:
+            logger.info("Application window closed")
+            self._close_logged = True
         event.accept()

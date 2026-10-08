@@ -1,8 +1,9 @@
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QMenu, QPushButton, QSlider, QSpinBox, QVBoxLayout, QWidget
 
 from coldcamera.effects.descriptors import EffectDescriptor, get_effect_descriptor
+from coldcamera.logger import logger
 from coldcamera.widgets.editable_label import EditableLabel
 
 
@@ -24,6 +25,7 @@ class EffectWidget(QFrame):
         super().__init__(parent)
         self.effect = effect
         self.descriptor = descriptor or get_effect_descriptor(type(effect))
+        self._last_logged_parameter_values = {name: effect.get_parameter(name) for name, _parameter in effect.params}
 
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
@@ -93,6 +95,7 @@ class EffectWidget(QFrame):
     def _toggle_enabled(self, state):
         """Toggle effect enabled state."""
         self.effect.enabled = bool(state)
+        logger.info(f"Effect enabled state changed: effect={self.descriptor.name}, enabled={self.effect.enabled}")
         self.params_changed.emit()
 
     def _build_controls(self):
@@ -134,6 +137,8 @@ class EffectWidget(QFrame):
 
         value_lbl = EditableLabel(self.effect.get_parameter(el["name"]))
         slider.valueChanged.connect(lambda val, n=el["name"], lbl=value_lbl, pt=param_type, sc=scale: self._update_slider(val, n, lbl, pt, sc))
+        slider.setProperty("coldcamera_parameter", el["name"])
+        slider.installEventFilter(self)
         value_lbl.value_edited.connect(lambda val, s=slider, n=el["name"], pt=param_type, sc=scale: self._manual_slider_edit(val, s, n, pt, sc))
         slider.mouseDoubleClickEvent = lambda ev, s=slider, e=el, lbl=value_lbl, sc=scale, pt=param_type: self._slider_double_click(ev, s, e, lbl, sc, pt)
 
@@ -151,6 +156,7 @@ class EffectWidget(QFrame):
     def _manual_slider_edit(self, val, slider, name, param_type, scale):
         slider.setValue(int(val * scale))
         self.effect.set_parameter(name, param_type(val))
+        self._log_parameter_change(name)
         self.params_changed.emit()
 
     def _slider_double_click(self, event, slider, el, label, scale, param_type):
@@ -174,6 +180,9 @@ class EffectWidget(QFrame):
         spin.setValue(self.effect.get_parameter(el["name"]))
         spin.setMinimumWidth(80)
         spin.valueChanged.connect(lambda val, n=el["name"]: self._update_spinbox(val, n))
+        spin.setProperty("coldcamera_parameter", el["name"])
+        spin.installEventFilter(self)
+        spin.editingFinished.connect(lambda n=el["name"]: self._log_parameter_change(n))
 
         row.addWidget(lbl)
         row.addWidget(spin, 1)
@@ -194,6 +203,7 @@ class EffectWidget(QFrame):
 
     def _update_checkbox(self, value: bool, name: str) -> None:
         self.effect.set_parameter(name, value)
+        self._log_parameter_change(name)
         self.params_changed.emit()
 
     def _build_dropdown(self, el):
@@ -218,7 +228,25 @@ class EffectWidget(QFrame):
     def _update_dropdown(self, index, name, values):
         if 0 <= index < len(values):
             self.effect.set_parameter(name, values[index])
+            self._log_parameter_change(name)
             self.params_changed.emit()
+
+    def _log_parameter_change(self, name: str) -> None:
+        """Log one committed user edit, ignoring releases that did not change a value."""
+        value = self.effect.get_parameter(name)
+        if self._last_logged_parameter_values.get(name) == value:
+            return
+        self._last_logged_parameter_values[name] = value
+        logger.info(f"Effect parameter changed: effect={self.descriptor.name}, parameter={name}, value={value!r}")
+
+    def eventFilter(self, watched, event):
+        """Log slider and spin-box edits after the user releases the control."""
+        if event.type() in {QEvent.Type.MouseButtonRelease, QEvent.Type.KeyRelease}:
+            parameter_name = watched.property("coldcamera_parameter")
+            if parameter_name:
+                # Let Qt apply the final mouse/key event before reading the parameter.
+                QTimer.singleShot(0, self, lambda name=parameter_name: self._log_parameter_change(name))
+        return super().eventFilter(watched, event)
 
     def _build_separator(self):
         sep = QFrame()
