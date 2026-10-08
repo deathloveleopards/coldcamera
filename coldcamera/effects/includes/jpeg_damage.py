@@ -4,7 +4,6 @@ import numpy as np
 from PIL import Image
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterSpinBox
 from coldcamera.classes.parameter import EffectParam
 from coldcamera.types import Processable
 
@@ -16,7 +15,6 @@ class JpegDamageEffect(EffectBase):
         super().__init__(
             name,
             params=[EffectParam("quality", int, 75, default=75)],
-            layout_elements=[ParameterSpinBox("quality", "Quality", min_value=1, max_value=100, step=1)],
         )
 
     def apply(self, input_data: Processable) -> Processable:

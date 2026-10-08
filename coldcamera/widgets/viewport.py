@@ -1,6 +1,3 @@
-import io
-
-from PIL import Image
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPen, QPixmap, QWheelEvent
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
@@ -20,7 +17,7 @@ class ViewportWidget(QWidget):
     frame_changed = Signal(int)
     frame_request = Signal(int)
 
-    def __init__(self, parent=None, image_path: str | None = None):
+    def __init__(self, parent=None):
         super().__init__(parent)
 
         # --- Display parameters ---
@@ -31,8 +28,12 @@ class ViewportWidget(QWidget):
         self.max_scale = 10.0
         self.image: QImage | None = None
 
+        # Debouncing for frame requests to prevent thread buildup
+        self._frame_request_pending = False
+        self._pending_frame_index: int | None = None
+
         self.processed_qimage: QImage | None = None
-        self.original_qimage: QImage | None = None
+        self.original_qimage: QImage | None = None  # single-image original (for "View original")
 
         # --- Overlay widgets ---
         self.size_label = QLabel(self)
@@ -46,17 +47,13 @@ class ViewportWidget(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._setup_overlays()
 
-        if image_path:
-            self.set_image(image_path)
-
         self.view_original_btn.pressed.connect(self._show_original)
         self.view_original_btn.released.connect(self._show_processed)
 
         # --- Video/GIF playback ---
-        self.frames: list[QImage] | None = None
         self.current_frame = 0
         self.total_frames = 0
-        self.original_frame_qimg: QImage | None = None
+        self.original_frame_qimg: QImage | None = None  # per-frame original (for "View original")
         self.showing_original = False
 
         self.play_timer = QTimer(self)
@@ -108,32 +105,8 @@ class ViewportWidget(QWidget):
         self.zoom_out_btn.clicked.connect(lambda: self._adjust_zoom(0.8))
 
     # -------------------
-    # Image Loading
+    # Image Display
     # -------------------
-    @staticmethod
-    def _load_image(image_path: str) -> QImage:
-        """
-        Load image from file and convert to QImage.
-
-        :param image_path: Path to the image file
-        :return: QImage object
-        """
-        pil_image = Image.open(image_path).convert("RGBA")
-        buffer = io.BytesIO()
-        pil_image.save(buffer, format="PNG")
-        buffer.seek(0)
-        return QImage.fromData(buffer.read())
-
-    def set_image(self, image_path: str):
-        """
-        Load and display image from file.
-
-        :param image_path: Path to the image file
-        """
-        self.image = self._load_image(image_path)
-        self.size_label.setText(f"{self.image.width()}x{self.image.height()}")
-        self.update()
-
     def set_qimage(self, qimage: QImage):
         """
         Set QImage directly.
@@ -149,30 +122,45 @@ class ViewportWidget(QWidget):
     # -------------------
     # Video and GIF Handling
     # -------------------
-    def set_frames(self, frames: list[QImage], fps: int = 10):
+    def set_playback(self, total_frames: int, fps: int = 10) -> None:
         """
-        Set GIF frames for playback.
+        Configure frame-based playback (GIF or video).
 
-        :param frames: List of QImage frames
-        :param fps: Frames per second
+        The viewport does **not** store frame data — it only tracks the
+        frame count and fires :pyattr:`frame_request` signals so that
+        the controller can provide each frame as a QImage.
+
+        :param total_frames: Total number of frames.
+        :param fps: Frames per second for the playback timer.
         """
-        self.frames = frames
+
         self.current_frame = 0
+        self.total_frames = total_frames
+        self._frame_request_pending = False
+        self._pending_frame_index = None
         self.play_timer.start(int(1000 / fps))
-        self.frame_changed.emit(self.current_frame)
+        self.frame_request.emit(self.current_frame)
 
     def set_video(self, total_frames: int, fps: int = 10):
         """
         Configure video playback without loading frames into memory.
 
+        .. deprecated:: Use :meth:`set_playback` instead.
+
         :param total_frames: Total frames in video
         :param fps: Frames per second
         """
-        self.frames = None
+
+        self.set_playback(total_frames, fps)
+
+    def stop_playback(self) -> None:
+        """Stop animation and clear any queued frame request."""
+
+        self.play_timer.stop()
         self.current_frame = 0
-        self.total_frames = total_frames
-        self.play_timer.start(int(1000 / fps))
-        self.frame_changed.emit(self.current_frame)
+        self.total_frames = 0
+        self._frame_request_pending = False
+        self._pending_frame_index = None
 
     def update_current_frame(self, qimg: QImage):
         """
@@ -184,16 +172,35 @@ class ViewportWidget(QWidget):
         self.size_label.setText(f"{qimg.width()}x{qimg.height()}")
         self.update()
 
+        self.finish_frame_request()
+
+    def finish_frame_request(self) -> None:
+        """Release the frame-request slot after success, failure, or cancellation."""
+
+        # Mark frame processing as complete
+        self._frame_request_pending = False
+
+        # If there's a pending frame request, emit it now
+        if self._pending_frame_index is not None and self._pending_frame_index != self.current_frame:
+            pending = self._pending_frame_index
+            self._pending_frame_index = None
+            self._frame_request_pending = True
+            self.frame_request.emit(pending)
+
     def _next_frame(self):
-        """Advance to next frame for GIF or video playback."""
+        """Advance to next frame for playback with debouncing."""
+
         if self.total_frames > 0:
             self.current_frame = (self.current_frame + 1) % self.total_frames
-            self.frame_request.emit(self.current_frame)
-            return
 
-        if self.frames:
-            self.current_frame = (self.current_frame + 1) % len(self.frames)
-            self.frame_changed.emit(self.current_frame)
+            # Only emit if not already processing a frame
+            if not self._frame_request_pending:
+                self._frame_request_pending = True
+                self._pending_frame_index = self.current_frame
+                self.frame_request.emit(self.current_frame)
+            else:
+                # Queue this frame for later
+                self._pending_frame_index = self.current_frame
 
     # -------------------
     # Painting

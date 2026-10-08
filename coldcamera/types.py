@@ -1,9 +1,15 @@
-from typing import TypeAlias, Union
+"""
+Type aliases for the coldcamera processing pipeline.
 
-from numpy import ndarray
-from PIL import Image, ImageSequence
+The canonical processing format is NumPy RGBA uint8 arrays.
+QImage is only used at the viewport display boundary.
+"""
 
-# Processable types
-ImageLike: TypeAlias = Union[Image.Image, ndarray]
-SequenceLike: TypeAlias = ImageSequence.Iterator
-Processable: TypeAlias = Union[ImageLike, SequenceLike]
+from typing import TypeAlias
+
+import numpy as np
+from PIL import ImageSequence as ImageSequence  # noqa: F811 — re-export for external use
+
+# The canonical data type for all image processing within the pipeline.
+# All effects receive and return NumPy arrays (typically RGBA uint8).
+Processable: TypeAlias = np.ndarray

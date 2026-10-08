@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterSlider
 from coldcamera.classes.parameter import EffectParam
 from coldcamera.types import Processable
 
@@ -14,7 +13,6 @@ class HueEffect(EffectBase):
         super().__init__(
             name,
             params=[EffectParam("hue_shift", float, 0.0, default=0.0)],
-            layout_elements=[ParameterSlider("hue_shift", "Shift", min_value=-180.0, max_value=180.0, step=1.0)],
         )
 
     def apply(self, input_data: Processable) -> Processable:

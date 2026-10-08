@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterSlider, ParameterSpinBox
 from coldcamera.classes.parameter import EffectParam
 from coldcamera.types import Processable
 
@@ -18,12 +17,6 @@ class GhostingEffect(EffectBase):
                 EffectParam("offset_x", int, 8, default=8),
                 EffectParam("offset_y", int, 4, default=4),
                 EffectParam("blur_radius", int, 5, default=5),
-            ],
-            layout_elements=[
-                ParameterSlider("strength", "Ghost strength", min_value=0.0, max_value=1.0, step=0.01),
-                ParameterSpinBox("offset_x", "Offset X", min_value=-20, max_value=20, step=1),
-                ParameterSpinBox("offset_y", "Offset Y", min_value=-20, max_value=20, step=1),
-                ParameterSpinBox("blur_radius", "Blur radius", min_value=0, max_value=21, step=2),
             ],
         )
 

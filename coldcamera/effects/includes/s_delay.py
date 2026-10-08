@@ -2,7 +2,6 @@ from pedalboard import Delay
 from pedalboard._pedalboard import Pedalboard
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterSlider
 from coldcamera.classes.parameter import EffectParam
 from coldcamera.types import Processable
 from coldcamera.utils.sonarify_image import audio_bytes_to_image, image_to_audio_bytes
@@ -21,11 +20,6 @@ class DelayEffect(EffectBase):
                 EffectParam("delay_seconds", float, 0.1, default=0.1),
                 EffectParam("feedback", float, 0.4, default=0.4),
                 EffectParam("mix", float, 0.5, default=0.5),
-            ],
-            layout_elements=[
-                ParameterSlider("delay_seconds", "Delay (s)", min_value=0.0, max_value=30.0, step=0.1),
-                ParameterSlider("feedback", "Feedback", min_value=0.0, max_value=1.0, step=0.05),
-                ParameterSlider("mix", "Mix", min_value=0.0, max_value=1.0, step=0.05),
             ],
         )
 

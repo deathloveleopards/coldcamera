@@ -1,12 +1,10 @@
-from typing import Optional
-
-import numpy as np
-from PySide6.QtCore import QPoint, QSize, Qt, Signal
-from PySide6.QtGui import QImage
+from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QListWidget, QListWidgetItem, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
+from coldcamera.classes.effect import EffectBase
 from coldcamera.classes.pipeline import ProcessingPipeline
-from coldcamera.effects.register import EFFECT_REGISTRY
+from coldcamera.effects.descriptors import EFFECT_DESCRIPTORS
+from coldcamera.logger import logger
 from coldcamera.widgets.effect import EffectWidget
 from coldcamera.widgets.effect_popup import EffectsPopup
 from coldcamera.widgets.effects_list import EffectsList
@@ -14,24 +12,34 @@ from coldcamera.widgets.effects_list import EffectsList
 
 class PipelineWidget(QWidget):
     """
-    Widget that manages a list of image processing effects in a pipeline.
-    Supports adding, removing, reordering effects, and applying them to images.
+    Widget that manages the visual list of effects in a pipeline.
 
+    This widget owns the GUI-side pipeline draft. The window serializes
+    that draft into the Qt-free application API when submitting work.
+
+    :param pipeline: Initial GUI-side :class:`ProcessingPipeline` draft.
     :param parent: Optional parent QWidget.
-    :signal pipeline_changed: Emitted when pipeline changes (add/remove/reorder effects).
+    :signal pipeline_changed: Emitted whenever the pipeline is modified
+                              (effect added / removed / reordered / params changed).
     """
 
     pipeline_changed = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, pipeline: ProcessingPipeline, parent: QWidget | None = None):
         super().__init__(parent)
 
-        self.pipeline = ProcessingPipeline()
+        self.pipeline = pipeline
         self.setContentsMargins(0, 0, 0, 0)
         self.setStyleSheet("background: transparent;")
 
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
+
+        # --- Debouncing timer for parameter changes ---
+        self._params_change_timer = QTimer(self)
+        self._params_change_timer.setSingleShot(True)
+        self._params_change_timer.setInterval(50)  # 50ms debounce
+        self._params_change_timer.timeout.connect(self._emit_pipeline_changed)
 
         # --- Effects list ---
         self.effects_list = EffectsList()
@@ -39,7 +47,7 @@ class PipelineWidget(QWidget):
         self.effects_list.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.effects_list.setSpacing(10)
         self.effects_list.setFrameShape(QFrame.Shape.NoFrame)
-        self.effects_list.model().rowsMoved.connect(self._update_positions)
+        self.effects_list.model().rowsMoved.connect(self._on_rows_moved)
         self.effects_list.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         self.effects_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
 
@@ -61,7 +69,7 @@ class PipelineWidget(QWidget):
         self.main_layout.addLayout(buttons_layout)
 
         self.add_button.clicked.connect(self._show_effect_menu_from_add)
-        self.remove_button.clicked.connect(self.remove_effect)
+        self.remove_button.clicked.connect(self.remove_selected_effect)
 
         self._check_placeholder()
 
@@ -78,9 +86,12 @@ class PipelineWidget(QWidget):
             }
         """)
 
-    # ---------------- Placeholder item ----------------
-    def _add_placeholder_item(self):
+    # ================================================================
+    # Placeholder item
+    # ================================================================
+    def _add_placeholder_item(self) -> None:
         """Add a placeholder QListWidgetItem with a button to add effects."""
+
         self.placeholder_item = QListWidgetItem()
         self.placeholder_item.setFlags(Qt.ItemFlag.ItemIsEnabled)  # no drag/drop
         btn = self._create_placeholder_button()
@@ -88,8 +99,9 @@ class PipelineWidget(QWidget):
         self.effects_list.setItemWidget(self.placeholder_item, btn)
         self.placeholder_item.setSizeHint(QSize(0, 40))
 
-    def _create_placeholder_button(self):
-        """Create the add-effect button for the placeholder item."""
+    def _create_placeholder_button(self) -> QPushButton:
+        """Create the "+ Add effect" button for the placeholder item."""
+
         btn = QPushButton("Add first effect")
         btn.setFlat(True)
         btn.setStyleSheet("""
@@ -99,92 +111,176 @@ class PipelineWidget(QWidget):
                 padding: 12px;
             }
         """)
-        btn.clicked.connect(lambda *args: self._show_effect_menu(btn.mapToGlobal(QPoint(0, 0))))
+        btn.clicked.connect(lambda *_args: self._show_effect_menu(btn.mapToGlobal(QPoint(0, 0))))
         return btn
 
-    # ---------------- Context menu / effect selection ----------------
-    def _show_effect_menu(self, global_pos):
+    # ================================================================
+    # Effect popup / selection
+    # ================================================================
+    def _show_effect_menu(self, global_pos: QPoint) -> None:
         """
-        Show popup menu for selecting effects at a given global position.
+        Show the categorised effect-selection popup at *global_pos*.
 
         :param global_pos: Global screen position for popup.
         """
-        popup = EffectsPopup(EFFECT_REGISTRY, self)
+
+        popup = EffectsPopup(EFFECT_DESCRIPTORS, self)
         popup.effect_selected.connect(self.add_effect)
         popup.show_at(global_pos)
 
-    def _show_effect_menu_from_add(self):
-        """Show effect selection popup when clicking the add button."""
+    def _show_effect_menu_from_add(self) -> None:
+        """Show the effect popup anchored to the "+" button."""
+
         btn_pos = self.add_button.mapToGlobal(QPoint(0, 0))
         self._show_effect_menu(btn_pos)
 
-    # ---------------- Effect handling ----------------
-    def add_effect(self, effect_name=None):
+    # ================================================================
+    # Effect handling — public API
+    # ================================================================
+    def add_effect(self, effect_name: str) -> None:
         """
-        Add an effect to the pipeline by name.
+        Add an effect to the pipeline by its display name.
 
-        :param effect_name: Name of the effect to add.
+        Looks up the effect class via
+        :meth:`ProcessingPipeline.find_effect_class`, instantiates it,
+        creates the corresponding :class:`EffectWidget`, and appends it
+        to both the visual list and the underlying pipeline.
+
+        :param effect_name: Human-readable effect name (e.g. ``"Exposure"``).
         """
-        effect_class = None
-        for cat, effects in EFFECT_REGISTRY.items():
-            if effect_name in effects:
-                effect_class = effects[effect_name]
-                break
+
+        effect_class = ProcessingPipeline.find_effect_class(effect_name)
         if effect_class is None:
             return
 
-        effect = EffectWidget.build_from_effect_class(effect_class)
-        effect.params_changed.connect(self._on_params_changed)
+        effect_widget = EffectWidget.build_from_effect_class(effect_class)
+        self._insert_effect_widget(effect_widget)
 
-        item = QListWidgetItem()
-        item.setSizeHint(effect.sizeHint())
+        self.pipeline.add_effect(effect_widget.effect)
+        self._sync_pipeline_order()
+        self._check_placeholder()
+        logger.info(f"Effect added: {effect_name}")
+        self.pipeline_changed.emit()
 
-        # Insert before the placeholder
-        insert_row = self.effects_list.row(self.placeholder_item)
-        self.effects_list.insertItem(insert_row, item)
-        self.effects_list.setItemWidget(item, effect)
+    def add_existing_effect(self, effect: EffectBase) -> EffectWidget:
+        """
+        Add a pre-built :class:`EffectBase` instance and create its widget.
 
-        effect.delete_requested.connect(lambda *args, w=effect: self._delete_effect(w))
+        Used when restoring effects from a preset.
 
-        self.pipeline.add_effect(effect.effect)
-        self._update_positions()
+        :param effect: An existing EffectBase instance (already in pipeline).
+        :return: The created :class:`EffectWidget`.
+        """
+
+        effect_widget = EffectWidget.build_from_effect_class(
+            effect.__class__,
+            existing_effect=effect,
+        )
+        self._insert_effect_widget(effect_widget)
+        return effect_widget
+
+    def remove_selected_effect(self) -> None:
+        """Remove the currently selected effect from the list and pipeline."""
+
+        current_row = self.effects_list.currentRow()
+        if current_row < 0:
+            return
+
+        item = self.effects_list.item(current_row)
+        if item is self.placeholder_item:
+            return
+
+        widget = self.effects_list.itemWidget(item)
+        self.effects_list.takeItem(current_row)
+        if widget:
+            logger.info(f"Effect removed: {widget.effect.name}")
+            widget.setParent(None)
+            widget.deleteLater()
+
+        self._sync_pipeline_order()
         self._check_placeholder()
         self.pipeline_changed.emit()
 
-    def remove_effect(self):
-        """Remove currently selected effect from the list and pipeline."""
-        current_row = self.effects_list.currentRow()
-        if current_row >= 0:
-            item = self.effects_list.item(current_row)
-            if item is self.placeholder_item:
-                return
-            self.effects_list.takeItem(current_row)
-            widget = self.effects_list.itemWidget(item)
-            if widget:
-                widget.setParent(None)
-                widget.deleteLater()
-            self._update_positions()
-            self._check_placeholder()
-            self.pipeline_changed.emit()
+    def load_pipeline(self, pipeline: ProcessingPipeline) -> None:
+        """
+        Replace the current pipeline reference and rebuild the entire UI.
 
-    def _delete_effect(self, widget):
-        """Remove a specific EffectWidget from the list and pipeline."""
+        Called by the window after :meth:`Application.load_preset` creates
+        a new :class:`ProcessingPipeline`.
+
+        :param pipeline: The new pipeline to display.
+        """
+
+        self.pipeline = pipeline
+
+        # Tear down existing widgets
+        self.effects_list.clear()
+        self._add_placeholder_item()
+        self.effects_list.set_placeholder_item(self.placeholder_item)
+
+        # Rebuild a widget for every effect already in the pipeline
+        for effect in pipeline.effects:
+            self.add_existing_effect(effect)
+
+        self._sync_pipeline_order()
+        self._check_placeholder()
+
+    # ================================================================
+    # Internal helpers
+    # ================================================================
+    def _insert_effect_widget(self, effect_widget: EffectWidget) -> None:
+        """
+        Insert an :class:`EffectWidget` into the list just before
+        the placeholder and wire up its signals.
+
+        :param effect_widget: Widget to insert.
+        """
+
+        effect_widget.params_changed.connect(self._on_params_changed)
+        effect_widget.delete_requested.connect(
+            lambda *_args, w=effect_widget: self._delete_effect(w),
+        )
+
+        item = QListWidgetItem()
+        item.setSizeHint(effect_widget.sizeHint())
+
+        insert_row = self.effects_list.row(self.placeholder_item)
+        self.effects_list.insertItem(insert_row, item)
+        self.effects_list.setItemWidget(item, effect_widget)
+
+    def _delete_effect(self, widget: EffectWidget) -> None:
+        """Remove a specific :class:`EffectWidget` by reference."""
+
         for i in range(self.effects_list.count()):
             item = self.effects_list.item(i)
             if item is self.placeholder_item:
                 continue
             w = self.effects_list.itemWidget(item)
             if w is widget:
+                logger.info(f"Effect removed: {widget.effect.name}")
                 self.effects_list.takeItem(i)
                 w.setParent(None)
                 w.deleteLater()
                 break
-        self._update_positions()
+
+        self._sync_pipeline_order()
         self._check_placeholder()
         self.pipeline_changed.emit()
 
-    def _update_positions(self):
-        """Update the displayed positions of effects and update the pipeline order."""
+    def _on_rows_moved(self) -> None:
+        """Handle drag-and-drop reorder."""
+
+        self._sync_pipeline_order()
+        logger.info(f"Effect order changed: {[effect.name for effect in self.pipeline.effects]}")
+        self.pipeline_changed.emit()
+
+    def _sync_pipeline_order(self) -> None:
+        """
+        Walk the widget list in visual order, refresh the ``#N``
+        position labels, and synchronise :pyattr:`pipeline.effects`
+        via :meth:`ProcessingPipeline.reorder_from_effects`.
+        """
+
         new_effects = []
         pos = 1
         for i in range(self.effects_list.count()):
@@ -196,62 +292,22 @@ class PipelineWidget(QWidget):
                 widget.set_position(pos)
                 pos += 1
                 new_effects.append(widget.effect)
-        self.pipeline.effects = new_effects
-        self.pipeline_changed.emit()
 
-    def _check_placeholder(self):
-        """Update placeholder button text depending on whether effects exist."""
+        self.pipeline.reorder_from_effects(new_effects)
+
+    def _check_placeholder(self) -> None:
+        """Update the placeholder button text based on whether effects exist."""
+
         has_effects = any(self.effects_list.item(i) is not self.placeholder_item for i in range(self.effects_list.count()))
         btn = self.effects_list.itemWidget(self.placeholder_item)
-        btn.setText("+ Add effect" if has_effects else "+ Add first effect")
+        if isinstance(btn, QPushButton):
+            btn.setText("+ Add effect" if has_effects else "+ Add first effect")
 
-    # ---------------- Parameter changes ----------------
-    def _on_params_changed(self):
-        """Emit signal when effect parameters are changed."""
+    def _on_params_changed(self) -> None:
+        """Bubble up parameter edits as a pipeline change with debouncing."""
+        # Restart the debounce timer
+        self._params_change_timer.start()
+
+    def _emit_pipeline_changed(self) -> None:
+        """Actually emit the pipeline_changed signal after debounce delay."""
         self.pipeline_changed.emit()
-
-    # ---------------- Image/frame processing ----------------
-    def process_image(self, qimage: QImage) -> Optional[QImage]:
-        """
-        Apply pipeline to a QImage and return the processed image.
-
-        :param qimage: Input QImage.
-        :return: Processed QImage or None.
-        """
-        if qimage is None:
-            return None
-        if not getattr(self, "pipeline", None) or len(self.pipeline.effects) == 0:
-            return qimage.copy()
-
-        img = qimage.convertToFormat(QImage.Format.Format_RGBA8888)
-        w, h = img.width(), img.height()
-        ptr = img.bits()
-        arr = np.frombuffer(ptr, dtype=np.uint8).reshape((h, w, 4)).copy()
-        result = self.pipeline.apply_once(arr)
-        if result.dtype != np.uint8:
-            result = np.clip(result, 0, 255).astype(np.uint8)
-
-        h, w, ch = result.shape
-        if ch == 4:
-            fmt = QImage.Format.Format_RGBA8888
-        elif ch == 3:
-            fmt = QImage.Format.Format_RGB888
-        else:
-            raise ValueError(f"Unsupported channel count: {ch}")
-        return QImage(result.data, w, h, result.strides[0], fmt).copy()
-
-    def process_frame(self, frame: np.ndarray) -> Optional[np.ndarray]:
-        """
-        Apply pipeline to a single NumPy frame.
-
-        :param frame: Input image as NumPy array.
-        :return: Processed NumPy array.
-        """
-        if frame is None:
-            return None
-        if not getattr(self, "pipeline", None) or len(self.pipeline.effects) == 0:
-            return frame.copy()
-        result = self.pipeline.apply_once(frame)
-        if result.dtype != np.uint8:
-            result = np.clip(result, 0, 255).astype(np.uint8)
-        return result

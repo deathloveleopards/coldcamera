@@ -2,7 +2,6 @@ from pedalboard import Phaser
 from pedalboard._pedalboard import Pedalboard
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterSlider
 from coldcamera.classes.parameter import EffectParam
 from coldcamera.types import Processable
 from coldcamera.utils.sonarify_image import audio_bytes_to_image, image_to_audio_bytes
@@ -20,10 +19,6 @@ class PhaserEffect(EffectBase):
             params=[
                 EffectParam("rate", float, 1.5, default=1.5),
                 EffectParam("depth", float, 0.7, default=0.7),
-            ],
-            layout_elements=[
-                ParameterSlider("rate", "Rate", min_value=0.0, max_value=10.0, step=0.1),
-                ParameterSlider("depth", "Depth", min_value=0.0, max_value=1.0, step=0.1),
             ],
         )
 

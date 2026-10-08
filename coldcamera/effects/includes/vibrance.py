@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterSlider
 from coldcamera.classes.parameter import EffectParam
 from coldcamera.types import Processable
 
@@ -16,10 +15,6 @@ class VibranceEffect(EffectBase):
             params=[
                 EffectParam("vibrance", float, 0.0, default=0.0),
                 EffectParam("saturation", float, 0.0, default=0.0),
-            ],
-            layout_elements=[
-                ParameterSlider("vibrance", "Vibrance", min_value=-100, max_value=100, step=1),
-                ParameterSlider("saturation", "Saturation", min_value=-100, max_value=100, step=1),
             ],
         )
 

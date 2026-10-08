@@ -1,7 +1,6 @@
 import numpy as np
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterSlider
 from coldcamera.classes.parameter import EffectParam
 from coldcamera.types import Processable
 
@@ -15,10 +14,6 @@ class ContrastBrightnessEffect(EffectBase):
             params=[
                 EffectParam("contrast", float, 1.0, default=1.0),
                 EffectParam("brightness", float, 0.0, default=0.0),
-            ],
-            layout_elements=[
-                ParameterSlider("contrast", "Contrast", min_value=0.5, max_value=3.0, step=0.1),
-                ParameterSlider("brightness", "Brightness", min_value=-100, max_value=100, step=1),
             ],
         )
 

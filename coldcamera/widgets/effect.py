@@ -1,7 +1,9 @@
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QMenu, QPushButton, QSlider, QSpinBox, QVBoxLayout, QWidget
 
+from coldcamera.effects.descriptors import EffectDescriptor, get_effect_descriptor
+from coldcamera.logger import logger
 from coldcamera.widgets.editable_label import EditableLabel
 
 
@@ -19,10 +21,11 @@ class EffectWidget(QFrame):
     # ------------------------
     # Initialization
     # ------------------------
-    def __init__(self, effect, parent=None):
+    def __init__(self, effect, descriptor: EffectDescriptor | None = None, parent=None):
         super().__init__(parent)
         self.effect = effect
-        self.effect.widget = self  # Keep reference for dynamic rebuilds
+        self.descriptor = descriptor or get_effect_descriptor(type(effect))
+        self._last_logged_parameter_values = {name: effect.get_parameter(name) for name, _parameter in effect.params}
 
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
@@ -64,13 +67,13 @@ class EffectWidget(QFrame):
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.label = QLabel(effect.layout.name)
+        self.label = QLabel(self.descriptor.name)
         font = QFont("Montserrat", 10, QFont.Weight.Bold)
         self.label.setFont(font)
         self.label.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         self.enable_checkbox = QCheckBox()
-        self.enable_checkbox.setChecked(True)
+        self.enable_checkbox.setChecked(bool(effect.enabled))
         self.enable_checkbox.setToolTip("Enable/disable effect")
         self.enable_checkbox.toggled.connect(self._toggle_enabled)
 
@@ -92,12 +95,12 @@ class EffectWidget(QFrame):
     def _toggle_enabled(self, state):
         """Toggle effect enabled state."""
         self.effect.enabled = bool(state)
+        logger.info(f"Effect enabled state changed: effect={self.descriptor.name}, enabled={self.effect.enabled}")
         self.params_changed.emit()
 
     def _build_controls(self):
         """Build controls dynamically based on effect layout."""
-        layout_data = self.effect.layout.build()
-        for el in layout_data["layout"]:
+        for el in self.descriptor.editor_elements:
             el_type = el["type"]
 
             if el_type == "param_slider":
@@ -134,6 +137,8 @@ class EffectWidget(QFrame):
 
         value_lbl = EditableLabel(self.effect.get_parameter(el["name"]))
         slider.valueChanged.connect(lambda val, n=el["name"], lbl=value_lbl, pt=param_type, sc=scale: self._update_slider(val, n, lbl, pt, sc))
+        slider.setProperty("coldcamera_parameter", el["name"])
+        slider.installEventFilter(self)
         value_lbl.value_edited.connect(lambda val, s=slider, n=el["name"], pt=param_type, sc=scale: self._manual_slider_edit(val, s, n, pt, sc))
         slider.mouseDoubleClickEvent = lambda ev, s=slider, e=el, lbl=value_lbl, sc=scale, pt=param_type: self._slider_double_click(ev, s, e, lbl, sc, pt)
 
@@ -151,11 +156,12 @@ class EffectWidget(QFrame):
     def _manual_slider_edit(self, val, slider, name, param_type, scale):
         slider.setValue(int(val * scale))
         self.effect.set_parameter(name, param_type(val))
+        self._log_parameter_change(name)
         self.params_changed.emit()
 
     def _slider_double_click(self, event, slider, el, label, scale, param_type):
         if event.type() == event.MouseButtonDblClick:
-            default_val = el.get("default", 0)
+            default_val = self.effect.params[el["name"]].default
             slider.setValue(int(default_val * scale))
             real_val = param_type(default_val)
             self.effect.set_parameter(el["name"], real_val)
@@ -174,6 +180,9 @@ class EffectWidget(QFrame):
         spin.setValue(self.effect.get_parameter(el["name"]))
         spin.setMinimumWidth(80)
         spin.valueChanged.connect(lambda val, n=el["name"]: self._update_spinbox(val, n))
+        spin.setProperty("coldcamera_parameter", el["name"])
+        spin.installEventFilter(self)
+        spin.editingFinished.connect(lambda n=el["name"]: self._log_parameter_change(n))
 
         row.addWidget(lbl)
         row.addWidget(spin, 1)
@@ -188,23 +197,14 @@ class EffectWidget(QFrame):
         row.setSpacing(8)
         checkbox = QCheckBox(el["label"])
         checkbox.setChecked(bool(self.effect.get_parameter(el["name"])))
-        checkbox.toggled.connect(self._make_checkbox_callback(el["name"], el.get("callback"), checkbox))
+        checkbox.toggled.connect(lambda value, name=el["name"]: self._update_checkbox(value, name))
         row.addWidget(checkbox)
         self.right_panel.addLayout(row)
 
-    def _make_checkbox_callback(self, param_name, cb_name, checkbox):
-        def callback(value: bool):
-            checkbox.blockSignals(True)
-            self.effect.set_parameter(param_name, value)
-            if cb_name:
-                try:
-                    self.effect.layout.trigger(cb_name, value)
-                except KeyError:
-                    print(f"[WARN] Callback {cb_name} not found")
-            self.params_changed.emit()
-            checkbox.blockSignals(False)
-
-        return callback
+    def _update_checkbox(self, value: bool, name: str) -> None:
+        self.effect.set_parameter(name, value)
+        self._log_parameter_change(name)
+        self.params_changed.emit()
 
     def _build_dropdown(self, el):
         row = QHBoxLayout()
@@ -214,7 +214,9 @@ class EffectWidget(QFrame):
 
         combo = QComboBox()
         combo.addItems(el["options"])
-        current_value = el.get("value")
+        current_value = self.effect.get_parameter(el["name"])
+        if hasattr(current_value, "code"):
+            current_value = current_value.code
         if current_value in el["values"]:
             combo.setCurrentIndex(el["values"].index(current_value))
         combo.currentIndexChanged.connect(lambda idx, n=el["name"], v=el["values"]: self._update_dropdown(idx, n, v))
@@ -226,7 +228,25 @@ class EffectWidget(QFrame):
     def _update_dropdown(self, index, name, values):
         if 0 <= index < len(values):
             self.effect.set_parameter(name, values[index])
+            self._log_parameter_change(name)
             self.params_changed.emit()
+
+    def _log_parameter_change(self, name: str) -> None:
+        """Log one committed user edit, ignoring releases that did not change a value."""
+        value = self.effect.get_parameter(name)
+        if self._last_logged_parameter_values.get(name) == value:
+            return
+        self._last_logged_parameter_values[name] = value
+        logger.info(f"Effect parameter changed: effect={self.descriptor.name}, parameter={name}, value={value!r}")
+
+    def eventFilter(self, watched, event):
+        """Log slider and spin-box edits after the user releases the control."""
+        if event.type() in {QEvent.Type.MouseButtonRelease, QEvent.Type.KeyRelease}:
+            parameter_name = watched.property("coldcamera_parameter")
+            if parameter_name:
+                # Let Qt apply the final mouse/key event before reading the parameter.
+                QTimer.singleShot(0, self, lambda name=parameter_name: self._log_parameter_change(name))
+        return super().eventFilter(watched, event)
 
     def _build_separator(self):
         sep = QFrame()
@@ -246,16 +266,7 @@ class EffectWidget(QFrame):
 
     def _build_button(self, el):
         btn = QPushButton(el["label"])
-        btn.clicked.connect(lambda checked=False, name=el.get("callback"): self._button_clicked(name))
         self.right_panel.addWidget(btn)
-
-    def _button_clicked(self, callback_name):
-        if callback_name:
-            try:
-                self.effect.layout.trigger(callback_name)
-            except KeyError:
-                print(f"[WARN] Callback {callback_name} not found")
-        self.params_changed.emit()
 
     # ------------------------
     # Public methods
@@ -306,4 +317,4 @@ class EffectWidget(QFrame):
             effect = existing_effect
         else:
             effect = effect_class()
-        return cls(effect)
+        return cls(effect, get_effect_descriptor(effect_class))

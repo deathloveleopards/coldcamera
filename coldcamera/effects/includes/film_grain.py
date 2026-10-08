@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterCheckBox, ParameterSlider
 from coldcamera.classes.parameter import EffectParam
 from coldcamera.types import Processable
 
@@ -17,11 +16,6 @@ class FilmGrainEffect(EffectBase):
                 EffectParam("grain_strength", float, 10.0, default=10.0),
                 EffectParam("grain_size", float, 1.5, default=1.5),
                 EffectParam("color_grain", bool, True, default=True),
-            ],
-            layout_elements=[
-                ParameterSlider("grain_strength", "Grain Strength", min_value=0, max_value=100, step=1),
-                ParameterSlider("grain_size", "Grain Size", min_value=0.5, max_value=5.0, step=0.1),
-                ParameterCheckBox("color_grain", "Color Grain"),
             ],
         )
 

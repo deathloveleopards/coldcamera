@@ -1,17 +1,9 @@
-
-
+import os
 from pathlib import Path
 
-import os
-
-
 DEFAULT_PATHS: dict[str, dict[str, str]] = {
-    "nt": {
-        "application": "coldcamera"
-    },
-    "posix": {
-        "application": "coldcamera"
-    }
+    "nt": {"application": "coldcamera"},
+    "posix": {"application": "coldcamera"},
 }
 
 
@@ -32,11 +24,7 @@ def get_user_local_directory(paths: dict[str, dict[str, str]] = DEFAULT_PATHS) -
     if os.name == "posix":
         path = Path(os.path.expanduser(f"~/.{paths[os.name]['application']}/"))
     elif os.name == "nt":
-        path = Path(
-            os.path.expanduser(
-                f"C:/Users/{os.getlogin()}/AppData/Local/{paths[os.name]['application']}/"
-            )
-        )
+        path = Path(os.path.expanduser(f"C:/Users/{os.getlogin()}/AppData/Local/{paths[os.name]['application']}/"))
     else:
         path = Path("./")
 

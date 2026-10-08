@@ -1,4 +1,4 @@
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Type, Union
 
 from coldcamera.classes.effect import EffectBase
 from coldcamera.effects.register import get_by_name
@@ -86,6 +86,44 @@ class ProcessingPipeline:
         """
 
         self.effects.append(effect)
+
+    @staticmethod
+    def find_effect_class(effect_name: str) -> Optional[Type[EffectBase]]:
+        """
+        Look up an effect class by its display name in the registry.
+
+        :param effect_name: Human-readable effect name (e.g. "Exposure").
+        :return: Effect class, or None if not found.
+        """
+
+        return get_by_name(effect_name)
+
+    def add_effect_by_name(self, effect_name: str) -> Optional[EffectBase]:
+        """
+        Instantiate an effect by its display name and append it to the pipeline.
+
+        :param effect_name: Human-readable effect name (e.g. "Exposure").
+        :return: The created EffectBase instance, or None if the name was not found.
+        """
+
+        effect_cls = self.find_effect_class(effect_name)
+        if effect_cls is None:
+            return None
+
+        effect = effect_cls()  # pyright: ignore[reportCallIssue]
+        self.effects.append(effect)
+        return effect
+
+    def reorder_from_effects(self, effects: List[EffectBase]) -> None:
+        """
+        Replace the current effects list with a new ordered list.
+
+        Useful for syncing the pipeline order after a drag-and-drop reorder in the UI.
+
+        :param effects: New ordered list of EffectBase instances.
+        """
+
+        self.effects = effects
 
     def insert_effect(self, index: int, effect: EffectBase) -> None:
         """
