@@ -2,10 +2,8 @@ import blend_modes as bm
 import numpy as np
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterDropdown, ParameterSlider
 from coldcamera.classes.parameter import EffectParam
 from coldcamera.classes.shader_processor import ShaderProcessorBase
-from coldcamera.enums import BlendModeType
 from coldcamera.types import Processable
 from coldcamera.utils.add_alpha_channel import add_alpha_channel
 
@@ -56,14 +54,10 @@ class BlurEffect(EffectBase):
                 EffectParam("opacity", float, 1.0, default=1.0),
                 EffectParam("blend_mode", str, "lighten_only", default="lighten_only"),
             ],
-            layout_elements=[
-                ParameterSlider("amount", "Blur amount", min_value=0, max_value=100, step=1),
-                ParameterSlider("angle", "Blur angle", min_value=-180, max_value=180, step=1),
-                ParameterSlider("opacity", "Opacity", min_value=0, max_value=1, step=0.05),
-                ParameterDropdown("blend_mode", "Blend mode", enum_type=BlendModeType, default=BlendModeType.NORMAL, value=BlendModeType.NORMAL),  # pyright: ignore[reportArgumentType]
-            ],
         )
-        self.processor = BlurShaderProcessor()
+        # OpenGL resources belong to the processing thread, not the GUI that
+        # may construct an effect for its parameter editor.
+        self.processor: BlurShaderProcessor | None = None
 
     def apply(self, input_data: Processable) -> Processable:
         img_rgb = np.array(input_data).astype(np.uint8)
@@ -71,6 +65,8 @@ class BlurEffect(EffectBase):
         if self.get_parameter("amount") <= 0:
             return img_rgb
 
+        if self.processor is None:
+            self.processor = BlurShaderProcessor()
         blurred = self.processor.process(
             img_rgb,
             amount=self.get_parameter("amount"),

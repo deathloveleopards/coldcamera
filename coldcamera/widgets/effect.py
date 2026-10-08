@@ -2,6 +2,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QMenu, QPushButton, QSlider, QSpinBox, QVBoxLayout, QWidget
 
+from coldcamera.effects.descriptors import EffectDescriptor, get_effect_descriptor
 from coldcamera.widgets.editable_label import EditableLabel
 
 
@@ -19,10 +20,10 @@ class EffectWidget(QFrame):
     # ------------------------
     # Initialization
     # ------------------------
-    def __init__(self, effect, parent=None):
+    def __init__(self, effect, descriptor: EffectDescriptor | None = None, parent=None):
         super().__init__(parent)
         self.effect = effect
-        self.effect.widget = self  # Keep reference for dynamic rebuilds
+        self.descriptor = descriptor or get_effect_descriptor(type(effect))
 
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
@@ -64,13 +65,13 @@ class EffectWidget(QFrame):
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.label = QLabel(effect.layout.name)
+        self.label = QLabel(self.descriptor.name)
         font = QFont("Montserrat", 10, QFont.Weight.Bold)
         self.label.setFont(font)
         self.label.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         self.enable_checkbox = QCheckBox()
-        self.enable_checkbox.setChecked(True)
+        self.enable_checkbox.setChecked(bool(effect.enabled))
         self.enable_checkbox.setToolTip("Enable/disable effect")
         self.enable_checkbox.toggled.connect(self._toggle_enabled)
 
@@ -96,8 +97,7 @@ class EffectWidget(QFrame):
 
     def _build_controls(self):
         """Build controls dynamically based on effect layout."""
-        layout_data = self.effect.layout.build()
-        for el in layout_data["layout"]:
+        for el in self.descriptor.editor_elements:
             el_type = el["type"]
 
             if el_type == "param_slider":
@@ -155,7 +155,7 @@ class EffectWidget(QFrame):
 
     def _slider_double_click(self, event, slider, el, label, scale, param_type):
         if event.type() == event.MouseButtonDblClick:
-            default_val = el.get("default", 0)
+            default_val = self.effect.params[el["name"]].default
             slider.setValue(int(default_val * scale))
             real_val = param_type(default_val)
             self.effect.set_parameter(el["name"], real_val)
@@ -188,23 +188,13 @@ class EffectWidget(QFrame):
         row.setSpacing(8)
         checkbox = QCheckBox(el["label"])
         checkbox.setChecked(bool(self.effect.get_parameter(el["name"])))
-        checkbox.toggled.connect(self._make_checkbox_callback(el["name"], el.get("callback"), checkbox))
+        checkbox.toggled.connect(lambda value, name=el["name"]: self._update_checkbox(value, name))
         row.addWidget(checkbox)
         self.right_panel.addLayout(row)
 
-    def _make_checkbox_callback(self, param_name, cb_name, checkbox):
-        def callback(value: bool):
-            checkbox.blockSignals(True)
-            self.effect.set_parameter(param_name, value)
-            if cb_name:
-                try:
-                    self.effect.layout.trigger(cb_name, value)
-                except KeyError:
-                    print(f"[WARN] Callback {cb_name} not found")
-            self.params_changed.emit()
-            checkbox.blockSignals(False)
-
-        return callback
+    def _update_checkbox(self, value: bool, name: str) -> None:
+        self.effect.set_parameter(name, value)
+        self.params_changed.emit()
 
     def _build_dropdown(self, el):
         row = QHBoxLayout()
@@ -214,7 +204,9 @@ class EffectWidget(QFrame):
 
         combo = QComboBox()
         combo.addItems(el["options"])
-        current_value = el.get("value")
+        current_value = self.effect.get_parameter(el["name"])
+        if hasattr(current_value, "code"):
+            current_value = current_value.code
         if current_value in el["values"]:
             combo.setCurrentIndex(el["values"].index(current_value))
         combo.currentIndexChanged.connect(lambda idx, n=el["name"], v=el["values"]: self._update_dropdown(idx, n, v))
@@ -246,16 +238,7 @@ class EffectWidget(QFrame):
 
     def _build_button(self, el):
         btn = QPushButton(el["label"])
-        btn.clicked.connect(lambda checked=False, name=el.get("callback"): self._button_clicked(name))
         self.right_panel.addWidget(btn)
-
-    def _button_clicked(self, callback_name):
-        if callback_name:
-            try:
-                self.effect.layout.trigger(callback_name)
-            except KeyError:
-                print(f"[WARN] Callback {callback_name} not found")
-        self.params_changed.emit()
 
     # ------------------------
     # Public methods
@@ -306,4 +289,4 @@ class EffectWidget(QFrame):
             effect = existing_effect
         else:
             effect = effect_class()
-        return cls(effect)
+        return cls(effect, get_effect_descriptor(effect_class))

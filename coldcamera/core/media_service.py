@@ -1,184 +1,215 @@
-from typing import List, Tuple
+"""Qt-independent media loading, frame processing, and exporting."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Iterator
 
 import cv2
 import numpy as np
 from PIL import Image, ImageSequence
 
 from coldcamera.classes.pipeline import ProcessingPipeline
-from coldcamera.classes.video_provider import VideoFrameProvider
 from coldcamera.core.image_processor import ImageProcessor
+from coldcamera.core.media_sources import FrameSource, MediaKind, MemoryFrameSource, VideoFrameSource
+from coldcamera.core.operations import CancellationToken, ProgressCallback, report_progress
+from coldcamera.core.pipeline_snapshot import PipelineSnapshot
+
+PipelineInput = ProcessingPipeline | PipelineSnapshot
 
 
 class MediaService:
-    """
-    Service for loading and exporting media files (images, GIFs, videos).
+    """Synchronous media operations with no Qt dependencies."""
 
-    Operates exclusively on NumPy arrays and PIL — no Qt dependency.
-    QImage conversion is handled at the display boundary (window layer).
-    """
-
-    # -------------------
-    # Loading
-    # -------------------
     @staticmethod
     def load_image(path: str) -> np.ndarray:
-        """
-        Load an image from disk and return it as an RGBA NumPy array.
+        with Image.open(path) as image:
+            return np.array(image.convert("RGBA"), dtype=np.uint8)
 
-        :param path: Path to the image file.
-        :return: RGBA numpy array (H, W, 4), dtype uint8.
-        """
-
-        pil_image = Image.open(path).convert("RGBA")
-        return np.array(pil_image, dtype=np.uint8)
+    @classmethod
+    def load_image_source(cls, path: str) -> MemoryFrameSource:
+        return MemoryFrameSource(path, "image", [cls.load_image(path)], 1)
 
     @staticmethod
-    def load_gif_frames(path: str) -> Tuple[List[np.ndarray], int]:
-        """
-        Load a GIF and extract all frames as RGBA NumPy arrays.
-
-        :param path: Path to the GIF file.
-        :return: Tuple of (list of RGBA numpy frames, fps).
-        """
-
-        pil_img = Image.open(path)
-        frames: List[np.ndarray] = []
-
-        for frame in ImageSequence.Iterator(pil_img):
-            rgba = frame.convert("RGBA")
-            frames.append(np.array(rgba, dtype=np.uint8))
-
-        duration = pil_img.info.get("duration", 100)
-        fps = max(1, int(1000 / duration))
-
+    def load_gif_frames(path: str) -> tuple[list[np.ndarray], int]:
+        with Image.open(path) as image:
+            frames = [np.array(frame.convert("RGBA"), dtype=np.uint8) for frame in ImageSequence.Iterator(image)]
+            duration = image.info.get("duration", 100)
+        fps = max(1, int(1000 / duration)) if duration else 10
         return frames, fps
 
+    @classmethod
+    def load_gif_source(cls, path: str) -> MemoryFrameSource:
+        frames, fps = cls.load_gif_frames(path)
+        return MemoryFrameSource(path, "gif", frames, fps)
+
     @staticmethod
-    def load_video(path: str) -> VideoFrameProvider:
-        """
-        Open a video file and return a VideoFrameProvider.
+    def load_video(path: str) -> VideoFrameSource:
+        return VideoFrameSource(path)
 
-        :param path: Path to the video file.
-        :return: VideoFrameProvider instance.
-        :raises VideoOpenError: If video cannot be opened.
-        """
+    @classmethod
+    def load_source(cls, path: str, kind: MediaKind | None = None) -> FrameSource:
+        resolved_kind = kind or cls.kind_from_path(path)
+        if resolved_kind == "image":
+            return cls.load_image_source(path)
+        if resolved_kind == "gif":
+            return cls.load_gif_source(path)
+        if resolved_kind == "video":
+            return cls.load_video(path)
+        raise ValueError(f"Unsupported media type: {resolved_kind}")
 
-        return VideoFrameProvider(path)
+    @staticmethod
+    def kind_from_path(path: str) -> MediaKind:
+        suffix = Path(path).suffix.lower()
+        if suffix == ".gif":
+            return "gif"
+        if suffix in {".mp4", ".avi", ".mov", ".mkv", ".webm"}:
+            return "video"
+        if suffix in {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}:
+            return "image"
+        raise ValueError(f"Unsupported media file: {path}")
 
-    # -------------------
-    # Exporting
-    # -------------------
+    @staticmethod
+    def _pipeline_for_operation(pipeline: PipelineInput) -> ProcessingPipeline:
+        if isinstance(pipeline, PipelineSnapshot):
+            return pipeline.build_pipeline()
+        return PipelineSnapshot.from_pipeline(pipeline).build_pipeline()
+
+    @classmethod
+    def process_source_frame(
+        cls,
+        source: FrameSource,
+        frame_index: int,
+        pipeline: PipelineInput,
+        cancellation: CancellationToken | None = None,
+    ) -> tuple[np.ndarray, np.ndarray] | None:
+        if cancellation is not None:
+            cancellation.raise_if_cancelled()
+        with source.open_reader() as reader:
+            original = reader.get_frame(frame_index)
+        if original is None:
+            return None
+        runtime_pipeline = cls._pipeline_for_operation(pipeline)
+        if cancellation is not None:
+            cancellation.raise_if_cancelled()
+        processed = ImageProcessor.process_frame(runtime_pipeline, original.copy())
+        if processed is None:
+            return None
+        return original, ImageProcessor.ensure_rgba(processed)
+
     @staticmethod
     def export_image(frame: np.ndarray, path: str) -> None:
-        """
-        Export a NumPy frame to disk as an image file.
-
-        :param frame: Processed RGBA or RGB NumPy array (uint8).
-        :param path: Destination file path.
-        """
-
         frame = ImageProcessor.ensure_uint8(frame)
-
         if frame.ndim == 3 and frame.shape[2] == 4:
-            pil_img = Image.fromarray(frame, "RGBA").convert("RGB")
+            image = Image.fromarray(frame).convert("RGB")
         elif frame.ndim == 3 and frame.shape[2] == 3:
-            pil_img = Image.fromarray(frame, "RGB")
+            image = Image.fromarray(frame)
         else:
             raise ValueError(f"Unsupported array shape for export: {frame.shape}")
+        image.save(path)
 
-        pil_img.save(path)
+    @classmethod
+    def export_processed_image(
+        cls,
+        source: FrameSource,
+        frame_index: int,
+        pipeline: PipelineInput,
+        path: str,
+        cancellation: CancellationToken | None = None,
+    ) -> None:
+        result = cls.process_source_frame(source, frame_index, pipeline, cancellation)
+        if result is None:
+            raise ValueError("No image frame is available to export")
+        if cancellation is not None:
+            cancellation.raise_if_cancelled()
+        cls.export_image(result[1], path)
 
-    @staticmethod
+    @classmethod
     def export_gif(
-        original_frames: List[np.ndarray],
-        pipeline: ProcessingPipeline,
-        fps: int,
+        cls,
+        source: FrameSource,
+        pipeline: PipelineInput,
         path: str,
+        *,
+        fps: int | None = None,
+        progress: ProgressCallback | None = None,
+        cancellation: CancellationToken | None = None,
     ) -> None:
-        """
-        Process and export GIF frames through the pipeline.
+        runtime_pipeline = cls._pipeline_for_operation(pipeline)
+        processed_frames: list[Image.Image] = []
+        total = source.info.frame_count
 
-        :param original_frames: List of original RGBA NumPy frames.
-        :param pipeline: ProcessingPipeline to apply to each frame.
-        :param fps: Frames per second for the output GIF.
-        :param path: Destination file path.
-        :raises ValueError: If a frame has unsupported channel count.
-        """
+        with source.open_reader() as reader:
+            for current, (_index, frame) in enumerate(reader.iter_frames(), start=1):
+                if cancellation is not None:
+                    cancellation.raise_if_cancelled()
+                processed = ImageProcessor.process_frame(runtime_pipeline, frame)
+                if processed is not None:
+                    if processed.ndim != 3 or processed.shape[2] not in (3, 4):
+                        raise ValueError(f"Unsupported channel count: {processed.shape[-1] if processed.ndim else 0}")
+                    processed_frames.append(Image.fromarray(processed))
+                report_progress(progress, current, total)
 
-        processed_frames: List[Image.Image] = []
+        if not processed_frames:
+            raise ValueError("No frames were processed")
+        output_fps = max(1, fps or source.info.fps)
+        processed_frames[0].save(
+            path,
+            save_all=True,
+            append_images=processed_frames[1:],
+            duration=int(1000 / output_fps),
+            loop=0,
+            optimize=False,
+        )
 
-        for arr in original_frames:
-            processed = ImageProcessor.process_frame(pipeline, arr)
-            if processed is None:
-                continue
+    @classmethod
+    def export_video(
+        cls,
+        source: FrameSource,
+        pipeline: PipelineInput,
+        path: str,
+        *,
+        progress: ProgressCallback | None = None,
+        cancellation: CancellationToken | None = None,
+    ) -> None:
+        runtime_pipeline = cls._pipeline_for_operation(pipeline)
+        total = source.info.frame_count
+        writer = None
+        processed_count = 0
 
-            if processed.shape[2] == 4:
-                pil_img = Image.fromarray(processed, "RGBA")
-            elif processed.shape[2] == 3:
-                pil_img = Image.fromarray(processed, "RGB")
-            else:
-                raise ValueError(f"Unsupported channel count: {processed.shape[2]}")
-            processed_frames.append(pil_img)
+        with source.open_reader() as reader:
+            frame_iterator = reader.iter_frames()
+            try:
+                for current, (_index, rgba_frame) in enumerate(frame_iterator, start=1):
+                    if cancellation is not None:
+                        cancellation.raise_if_cancelled()
+                    if writer is None:
+                        height, width = rgba_frame.shape[:2]
+                        fourcc = cv2.VideoWriter_fourcc(*("XVID" if path.lower().endswith(".avi") else "mp4v"))
+                        writer = cv2.VideoWriter(path, fourcc, source.info.fps, (width, height))
+                        if not writer.isOpened():
+                            raise OSError(f"Cannot open video output: {path}")
 
-        if processed_frames:
-            processed_frames[0].save(
-                path,
-                save_all=True,
-                append_images=processed_frames[1:],
-                duration=int(1000 / fps),
-                loop=0,
-                optimize=False,
-            )
+                    processed = ImageProcessor.process_frame(runtime_pipeline, rgba_frame)
+                    if processed is None:
+                        continue
+                    if processed.shape[2] == 4:
+                        processed_rgb = cv2.cvtColor(processed, cv2.COLOR_RGBA2RGB)
+                    elif processed.shape[2] == 3:
+                        processed_rgb = processed
+                    else:
+                        raise ValueError(f"Unsupported channel count: {processed.shape[2]}")
+                    writer.write(cv2.cvtColor(processed_rgb, cv2.COLOR_RGB2BGR))
+                    processed_count += 1
+                    report_progress(progress, current, total)
+            finally:
+                if writer is not None:
+                    writer.release()
+
+        if processed_count == 0:
+            raise ValueError("No video frames were processed")
 
     @staticmethod
-    def export_video(
-        video_provider: VideoFrameProvider,
-        pipeline: ProcessingPipeline,
-        path: str,
-    ) -> None:
-        """
-        Process and export video frames through the pipeline.
-
-        :param video_provider: VideoFrameProvider for the source video.
-        :param pipeline: ProcessingPipeline to apply to each frame.
-        :param path: Destination file path.
-        """
-
-        cap = video_provider.cap
-        frame_count = video_provider.frame_count
-        fps = video_provider.fps
-
-        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        ret, frame = cap.read()
-        if not ret:
-            return
-        h, w, _ = frame.shape
-
-        fourcc = (
-            cv2.VideoWriter_fourcc(*"XVID")  # pyright: ignore[reportAttributeAccessIssue]
-            if path.lower().endswith(".avi")
-            else cv2.VideoWriter_fourcc(*"mp4v")  # pyright: ignore[reportAttributeAccessIssue]
-        )
-        out = cv2.VideoWriter(path, fourcc, fps, (w, h))
-
-        for idx in range(frame_count):
-            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            processed = ImageProcessor.process_frame(pipeline, frame_rgb)
-
-            if processed is None:
-                continue
-
-            if processed.shape[2] == 4:
-                processed_rgb = cv2.cvtColor(processed, cv2.COLOR_RGBA2RGB)
-            else:
-                processed_rgb = processed
-
-            processed_bgr = cv2.cvtColor(processed_rgb, cv2.COLOR_RGB2BGR)
-            out.write(processed_bgr)
-
-        out.release()
+    def iter_frames(source: FrameSource) -> Iterator[tuple[int, np.ndarray]]:
+        with source.open_reader() as reader:
+            yield from reader.iter_frames()

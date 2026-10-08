@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QListWidget, QListWidgetItem,
 
 from coldcamera.classes.effect import EffectBase
 from coldcamera.classes.pipeline import ProcessingPipeline
-from coldcamera.effects.register import EFFECT_REGISTRY
+from coldcamera.effects.descriptors import EFFECT_DESCRIPTORS
 from coldcamera.widgets.effect import EffectWidget
 from coldcamera.widgets.effect_popup import EffectsPopup
 from coldcamera.widgets.effects_list import EffectsList
@@ -13,12 +13,10 @@ class PipelineWidget(QWidget):
     """
     Widget that manages the visual list of effects in a pipeline.
 
-    This widget is a **pure UI shell** — it owns no processing logic.
-    It receives a :class:`ProcessingPipeline` reference from outside
-    (typically from :class:`Application` via the window) and mutates it
-    when the user adds, removes, or reorders effects.
+    This widget owns the GUI-side pipeline draft. The window serializes
+    that draft into the Qt-free application API when submitting work.
 
-    :param pipeline: Shared :class:`ProcessingPipeline` instance to operate on.
+    :param pipeline: Initial GUI-side :class:`ProcessingPipeline` draft.
     :param parent: Optional parent QWidget.
     :signal pipeline_changed: Emitted whenever the pipeline is modified
                               (effect added / removed / reordered / params changed).
@@ -125,7 +123,7 @@ class PipelineWidget(QWidget):
         :param global_pos: Global screen position for popup.
         """
 
-        popup = EffectsPopup(EFFECT_REGISTRY, self)
+        popup = EffectsPopup(EFFECT_DESCRIPTORS, self)
         popup.effect_selected.connect(self.add_effect)
         popup.show_at(global_pos)
 

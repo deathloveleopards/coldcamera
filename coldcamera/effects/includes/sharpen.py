@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterSlider
 from coldcamera.classes.parameter import EffectParam
 from coldcamera.types import Processable
 
@@ -16,10 +15,6 @@ class SharpenEffect(EffectBase):
             params=[
                 EffectParam("amount", float, 1.0, default=1.0),
                 EffectParam("radius", int, 1, default=1),
-            ],
-            layout_elements=[
-                ParameterSlider("amount", "Amount", min_value=0.0, max_value=3.0, step=0.1),
-                ParameterSlider("radius", "Radius", min_value=1, max_value=10, step=1),
             ],
         )
 

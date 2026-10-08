@@ -4,7 +4,6 @@ import cv2
 import numpy as np
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterCheckBox, ParameterSlider
 from coldcamera.classes.parameter import EffectParam
 from coldcamera.types import Processable
 
@@ -24,16 +23,6 @@ class CCDSmearEffect(EffectBase):
                 EffectParam("smear_color_b", int, 200, default=200),
                 EffectParam("smear_falloff", float, 0.8, default=0.8),
                 EffectParam("use_mask", bool, False, default=False),
-            ],
-            layout_elements=[
-                ParameterSlider("smear_threshold", "Threshold", min_value=0, max_value=255, step=1),
-                ParameterSlider("smear_strength", "Smear Strength", min_value=0.0, max_value=1.0, step=0.01),
-                ParameterSlider("smear_h_blur", "Horizontal Blur", min_value=0, max_value=21, step=2),
-                ParameterSlider("smear_color_r", "Smear Color R", min_value=0, max_value=255, step=1),
-                ParameterSlider("smear_color_g", "Smear Color G", min_value=0, max_value=255, step=1),
-                ParameterSlider("smear_color_b", "Smear Color B", min_value=0, max_value=255, step=1),
-                ParameterSlider("smear_falloff", "Smear Falloff", min_value=0.0, max_value=1.0, step=0.01),
-                ParameterCheckBox("use_mask", "Use Mask"),
             ],
         )
 

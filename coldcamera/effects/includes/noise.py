@@ -2,9 +2,7 @@ import blend_modes as bm
 import numpy as np
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterDropdown, ParameterSlider
 from coldcamera.classes.parameter import EffectParam
-from coldcamera.enums import BlendModeType, NoiseType
 from coldcamera.types import Processable
 from coldcamera.utils.add_alpha_channel import add_alpha_channel
 
@@ -20,12 +18,6 @@ class NoiseEffect(EffectBase):
                 EffectParam("opacity", float, 1.0, default=1.0),
                 EffectParam("type", str, "gaussian", default="gaussian"),
                 EffectParam("blend_mode", str, "lighten_only", default="lighten_only"),
-            ],
-            layout_elements=[
-                ParameterSlider("strength", "Noise strength", min_value=0, max_value=100, step=1),
-                ParameterSlider("opacity", "Opacity", min_value=0, max_value=1, step=0.05),
-                ParameterDropdown("type", "Noise type", enum_type=NoiseType, default=NoiseType.GAUSSIAN, value=NoiseType.GAUSSIAN),  # pyright: ignore[reportArgumentType]
-                ParameterDropdown("blend_mode", "Blend mode", enum_type=BlendModeType, default=BlendModeType.LIGHTEN_ONLY, value=BlendModeType.LIGHTEN_ONLY),  # pyright: ignore[reportArgumentType]
             ],
         )
 

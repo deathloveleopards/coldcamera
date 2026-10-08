@@ -2,7 +2,6 @@ from pedalboard import Limiter
 from pedalboard._pedalboard import Pedalboard
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterSlider
 from coldcamera.classes.parameter import EffectParam
 from coldcamera.types import Processable
 from coldcamera.utils.sonarify_image import audio_bytes_to_image, image_to_audio_bytes
@@ -18,7 +17,6 @@ class LimiterEffect(EffectBase):
         super().__init__(
             name,
             params=[EffectParam("threshold", float, 0.0, default=0.0)],
-            layout_elements=[ParameterSlider("threshold", "Threshold", min_value=-40.0, max_value=40.0, step=0.5)],
         )
 
     def apply(self, input_data: Processable) -> Processable:

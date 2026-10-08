@@ -1,7 +1,7 @@
 from typing import Any, Dict, Iterator, List, Optional, Type, Union
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.effects.register import EFFECT_REGISTRY, get_by_name
+from coldcamera.effects.register import get_by_name
 from coldcamera.types import ImageSequence, Processable
 
 
@@ -96,10 +96,7 @@ class ProcessingPipeline:
         :return: Effect class, or None if not found.
         """
 
-        for _cat, effects in EFFECT_REGISTRY.items():
-            if effect_name in effects:
-                return effects[effect_name]
-        return None
+        return get_by_name(effect_name)
 
     def add_effect_by_name(self, effect_name: str) -> Optional[EffectBase]:
         """

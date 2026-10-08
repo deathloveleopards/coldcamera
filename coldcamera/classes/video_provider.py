@@ -1,54 +1,28 @@
-import cv2
+"""Backward-compatible path-backed video source facade."""
+
+from __future__ import annotations
+
 import numpy as np
 
-from coldcamera.exceptions import VideoOpenError
+from coldcamera.core.media_sources import VideoFrameSource
 
 
-class VideoFrameProvider:
-    """
-    Provides access to video frames from a file.
+class VideoFrameProvider(VideoFrameSource):
+    """Video source that opens a separate reader for each frame request."""
 
-    :param path: Path to the video file.
-    :raise VideoOpenError: If the video cannot be opened.
-    """
+    @property
+    def frame_count(self) -> int:
+        return self.info.frame_count
 
-    def __init__(self, path: str):
-        """
-        Initialize the video frame provider.
-
-        :param path: Path to the video file.
-        :raise VideoOpenError: If the video cannot be opened.
-        """
-
-        self.cap = cv2.VideoCapture(path)
-
-        if not self.cap.isOpened():
-            raise VideoOpenError(path=path)
-
-        self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 25
+    @property
+    def fps(self) -> int:
+        return self.info.fps
 
     def get_frame(self, index: int) -> np.ndarray | None:
-        """
-        Retrieve a specific frame from the video.
+        with self.open_reader() as reader:
+            return reader.get_frame(index)
 
-        :param index: Frame index to retrieve.
-        :return: Frame as an RGBA numpy array, or None if index is invalid or frame cannot be read.
-        """
+    def release(self) -> None:
+        """Kept for callers of the previous persistent-capture API."""
 
-        if index < 0 or index >= self.frame_count:
-            return None
-
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, index)
-
-        ret, frame = self.cap.read()
-
-        if not ret:
-            return None
-
-        return cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
-
-    def release(self):
-        """Release the video capture resources."""
-
-        self.cap.release()
+        return None

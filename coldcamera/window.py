@@ -13,10 +13,11 @@ responsible only for:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from itertools import count
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from PySide6.QtCore import Qt, QThread
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QImage
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -29,14 +30,13 @@ from PySide6.QtWidgets import (
 )
 
 from coldcamera.config import APPLICATION_VERSION
+from coldcamera.classes.pipeline import ProcessingPipeline
+from coldcamera.core.media_sources import MediaKind
+from coldcamera.core.pipeline_snapshot import PipelineSnapshot
 from coldcamera.widgets.pipeline import PipelineWidget
 from coldcamera.widgets.progress_dialog import ProgressDialog
 from coldcamera.widgets.viewport import ViewportWidget
-from coldcamera.workers import (
-    FrameProcessWorker,
-    GifExportWorker,
-    VideoExportWorker,
-)
+from coldcamera.workers import QtTaskRunner
 
 if TYPE_CHECKING:
     from coldcamera.application import Application
@@ -106,12 +106,22 @@ class MainWindow(QMainWindow):
         # frame_changed kept for legacy/compat — routes to the same handler
         self.viewport.frame_changed.connect(self._on_frame_request)
 
-        # --- Threading setup ---
-        self._process_thread: QThread | None = None
-        self._process_worker: FrameProcessWorker | None = None
-        self._export_thread: QThread | None = None
-        self._export_worker: GifExportWorker | VideoExportWorker | None = None
-        self._pending_frame_index: int | None = None
+        self._tasks = QtTaskRunner(self)
+        self._tasks.result.connect(self._on_task_result)
+        self._tasks.error.connect(self._on_task_error)
+        self._tasks.progress.connect(self._on_task_progress)
+        self._tasks.cancelled.connect(self._on_task_cancelled)
+        self._tasks.finished.connect(self._on_task_finished)
+
+        self._task_ids = count(1)
+        self._task_kinds: dict[str, tuple[Any, ...]] = {}
+        self._active_load_task: str | None = None
+        self._active_preset_load_task: str | None = None
+        self._active_preview_task: str | None = None
+        self._active_preview_generation = 0
+        self._export_task: str | None = None
+        self._export_dialog: ProgressDialog | None = None
+        self._current_frame_index = 0
 
     # ==================================================================
     # UI construction
@@ -182,8 +192,8 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setHandleWidth(0)
 
-        # Pipeline panel — receives the Application's pipeline reference
-        self.pipeline_widget = PipelineWidget(self.app.pipeline, self)
+        # The editor owns a UI-side draft; workers receive only serialized snapshots.
+        self.pipeline_widget = PipelineWidget(ProcessingPipeline(), self)
         pipeline_frame = QFrame()
         pipeline_frame.setFrameShape(QFrame.Shape.StyledPanel)
         pipeline_layout = QVBoxLayout(pipeline_frame)
@@ -212,6 +222,7 @@ class MainWindow(QMainWindow):
 
     def _on_pipeline_changed(self) -> None:
         """Re-process and display when any pipeline parameter changes."""
+        self.app.set_pipeline(self.pipeline_widget.pipeline)
         self._process_and_display()
 
     def _on_frame_request(self, frame_index: int) -> None:
@@ -223,82 +234,155 @@ class MainWindow(QMainWindow):
     # ==================================================================
 
     def _process_and_display(self, frame_index: int | None = None) -> None:
-        """
-        Ask :class:`Application` to process the current (or given) frame
-        in a background thread, then update the viewport when complete.
-        """
-        # If a thread is already running, queue this request
-        if self._process_thread is not None and self._process_thread.isRunning():
-            self._pending_frame_index = frame_index
+        snapshot = self._capture_snapshot()
+        if snapshot.media is None:
             return
-
         if frame_index is not None:
-            self.app.current_frame_index = frame_index
+            self._current_frame_index = frame_index
 
-        original = self.app.get_original_frame(self.app.current_frame_index)
-        if original is None:
-            return
+        self._active_preview_generation += 1
+        generation = self._active_preview_generation
+        previous_task = self._active_preview_task
+        if previous_task is not None:
+            self._tasks.cancel(previous_task)
 
-        # Create worker and thread
-        self._process_worker = FrameProcessWorker()
-        self._process_worker.set_data(
-            self.app.pipeline,
-            original,
-            self.app.current_frame_index,
+        task_id = self._new_task_id("preview")
+        self._active_preview_task = task_id
+        self._task_kinds[task_id] = ("preview", generation, self._current_frame_index, snapshot.media_info)
+        application = self.app
+        self._tasks.submit(
+            task_id,
+            lambda cancellation, _progress, snap=snapshot, index=self._current_frame_index, app=application: app.process_snapshot(snap, index, cancellation),
         )
 
-        self._process_thread = QThread()
-        self._process_worker.moveToThread(self._process_thread)
+    def _capture_snapshot(self):
+        """Synchronize the latest editor draft before creating a task snapshot."""
 
-        # Connect signals
-        self._process_thread.started.connect(self._process_worker.process)
-        self._process_worker.finished.connect(self._on_frame_processed)
-        self._process_worker.error.connect(self._on_process_error)
-        self._process_worker.finished.connect(self._process_thread.quit)
-        self._process_worker.error.connect(self._process_thread.quit)
-        self._process_thread.finished.connect(self._cleanup_process_thread)
+        self.app.set_pipeline(self.pipeline_widget.pipeline)
+        return self.app.snapshot()
 
-        # Start processing
-        self._process_thread.start()
-
-    def _on_frame_processed(self, original: np.ndarray, processed: np.ndarray, frame_index: int) -> None:
-        """Handle completed frame processing."""
-        orig_qimg = _numpy_to_qimage(original)
-        proc_qimg = _numpy_to_qimage(processed)
-
-        # Store both versions so the viewport's "View original" button works.
-        if self.app.original_image is not None:
-            # Single-image mode
-            self.viewport.original_qimage = orig_qimg
+    def _on_frame_processed(self, original: np.ndarray, processed: np.ndarray, frame_index: int, kind: MediaKind) -> None:
+        """Convert worker output to Qt display objects on the GUI thread."""
+        original_qimage = _numpy_to_qimage(original)
+        processed_qimage = _numpy_to_qimage(processed)
+        if kind == "image":
+            self.viewport.original_qimage = original_qimage
+            self.viewport.processed_qimage = processed_qimage
+            self.viewport.image = original_qimage if self.viewport.showing_original else processed_qimage
+            self.viewport.size_label.setText(f"{self.viewport.image.width()}x{self.viewport.image.height()}")
+            self.viewport.update()
         else:
-            # GIF / video mode — per-frame original
-            self.viewport.original_frame_qimg = orig_qimg
+            self.viewport.original_frame_qimg = original_qimage
+            self.viewport.processed_qimage = processed_qimage
+            self.viewport.current_frame = frame_index
+            self.viewport.update_current_frame(original_qimage if self.viewport.showing_original else processed_qimage)
 
-        self.viewport.processed_qimage = proc_qimg
+    def _new_task_id(self, prefix: str) -> str:
+        return f"{prefix}-{next(self._task_ids)}"
 
-        if self.viewport.showing_original:
-            self.viewport.set_qimage(orig_qimg)
+    def _on_task_result(self, task_id: str, result: Any) -> None:
+        task_context = self._task_kinds.pop(task_id, None)
+        if task_context is None:
+            return
+        kind = task_context[0]
+
+        if kind == "load":
+            if task_id != self._active_load_task:
+                return
+            media_source = result
+            self._active_preview_generation += 1
+            if self._active_preview_task is not None:
+                self._tasks.cancel(self._active_preview_task)
+            self.viewport.stop_playback()
+            media_info = self.app.set_media(media_source)
+            self._active_load_task = None
+            self._current_frame_index = 0
+            self.viewport.original_qimage = None
+            self.viewport.original_frame_qimg = None
+            self.viewport.processed_qimage = None
+            if media_info.kind == "image":
+                self._process_and_display(0)
+            else:
+                self.viewport.set_playback(media_info.frame_count, media_info.fps)
+            self.statusBar().showMessage(f"{media_info.kind.capitalize()} opened: {media_info.path}")
+        elif kind == "preview":
+            _kind, generation, frame_index, media_info = task_context
+            if task_id != self._active_preview_task or generation != self._active_preview_generation or media_info is None:
+                return
+            self._active_preview_task = None
+            if result is not None:
+                original, processed = result
+                self._on_frame_processed(original, processed, frame_index, media_info.kind)
+            elif media_info.kind != "image":
+                self.viewport.finish_frame_request()
+        elif kind == "export-image":
+            _kind, path = task_context
+            self.statusBar().showMessage(f"Image exported: {path}")
+        elif kind in {"export-gif", "export-video"}:
+            _kind, path, media_label = task_context
+            if self._export_dialog is not None:
+                self._export_dialog.mark_complete()
+            self.statusBar().showMessage(f"{media_label} exported: {path}")
+        elif kind == "save-preset":
+            self.statusBar().showMessage(f"Preset saved: {task_context[1]}")
+        elif kind == "load-preset":
+            if task_id != self._active_preset_load_task:
+                return
+            self._active_preset_load_task = None
+            snapshot = result
+            self.app.set_pipeline(snapshot)
+            self.pipeline_widget.load_pipeline(snapshot.build_pipeline())
+            self._process_and_display()
+            self.statusBar().showMessage(f"Preset loaded: {task_context[1]}")
+
+    def _on_task_error(self, task_id: str, error_msg: str) -> None:
+        task_context = self._task_kinds.pop(task_id, None)
+        if task_context is None:
+            return
+        kind = task_context[0]
+        error = error_msg.split("\n", 1)[0]
+        if kind == "load":
+            if task_id == self._active_load_task:
+                self._active_load_task = None
+            self.statusBar().showMessage(f"Open failed: {error}")
+        elif kind == "preview":
+            if task_id == self._active_preview_task:
+                self._active_preview_task = None
+                media_info = task_context[3]
+                if media_info is not None and media_info.kind != "image":
+                    self.viewport.finish_frame_request()
+                self.statusBar().showMessage(f"Processing error: {error}")
+        elif kind in {"export-gif", "export-video"}:
+            if self._export_dialog is not None:
+                self._export_dialog.mark_error(error)
+            self.statusBar().showMessage(f"Export failed: {error}")
+        elif kind == "export-image":
+            self.statusBar().showMessage(f"Export failed: {error}")
+        elif kind == "load-preset":
+            if task_id == self._active_preset_load_task:
+                self._active_preset_load_task = None
+                self.statusBar().showMessage(f"Preset operation failed: {error}")
         else:
-            self.viewport.set_qimage(proc_qimg)
+            self.statusBar().showMessage(f"Preset operation failed: {error}")
 
-    def _on_process_error(self, error_msg: str) -> None:
-        """Handle processing error."""
-        self.statusBar().showMessage(f"Processing error: {error_msg}")
+    def _on_task_progress(self, task_id: str, current: int, total: int) -> None:
+        if task_id == self._export_task and self._export_dialog is not None:
+            self._export_dialog.set_progress(current, total)
 
-    def _cleanup_process_thread(self) -> None:
-        """Clean up the processing thread."""
-        if self._process_worker:
-            self._process_worker.deleteLater()
-            self._process_worker = None
-        if self._process_thread:
-            self._process_thread.deleteLater()
-            self._process_thread = None
+    def _on_task_cancelled(self, task_id: str) -> None:
+        context = self._task_kinds.pop(task_id, None)
+        if context and context[0] in {"export-gif", "export-video"} and self._export_dialog is not None:
+            self._export_dialog.mark_error("Export cancelled")
 
-        # Process any pending frame request
-        if self._pending_frame_index is not None:
-            pending = self._pending_frame_index
-            self._pending_frame_index = None
-            self._process_and_display(pending)
+    def _on_task_finished(self, task_id: str) -> None:
+        if task_id == self._active_load_task:
+            self._active_load_task = None
+        if task_id == self._active_preset_load_task:
+            self._active_preset_load_task = None
+        if task_id == self._active_preview_task:
+            self._active_preview_task = None
+        if task_id == self._export_task:
+            self._export_task = None
 
     # ==================================================================
     # Open actions
@@ -308,39 +392,38 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, "Open image", "", "Images (*.png *.jpg *.jpeg *.bmp)")
         if not path:
             return
-
-        arr = self.app.open_image(path)
-        orig_qimg = _numpy_to_qimage(arr)
-        self.viewport.original_qimage = orig_qimg
-
-        # Show the (possibly pipeline-processed) result immediately
-        self._process_and_display()
-        self.statusBar().showMessage(f"Image opened: {path}")
+        self._start_load(path, "image")
 
     def _open_gif(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Open GIF", "", "GIF (*.gif)")
         if not path:
             return
-
-        frames, fps = self.app.open_gif(path)
-        self.viewport.set_playback(len(frames), fps)
-        self.statusBar().showMessage(f"GIF opened: {path}")
+        self._start_load(path, "gif")
 
     def _open_video(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Open video", "", "Videos (*.mp4 *.avi *.mov)")
         if not path:
             return
+        self._start_load(path, "video")
 
-        frame_count, fps = self.app.open_video(path)
-        self.viewport.set_playback(frame_count, fps)
-        self.statusBar().showMessage(f"Video opened: {path}")
+    def _start_load(self, path: str, kind: MediaKind) -> None:
+        if self._active_load_task is not None:
+            self._tasks.cancel(self._active_load_task)
+
+        task_id = self._new_task_id("load")
+        self._active_load_task = task_id
+        self._task_kinds[task_id] = ("load", path, kind)
+        self.statusBar().showMessage(f"Opening {kind}: {path}")
+        application = self.app
+        self._tasks.submit(task_id, lambda cancellation, _progress, app=application: app.prepare_media(path, kind))
 
     # ==================================================================
     # Export actions
     # ==================================================================
 
     def _export_image(self) -> None:
-        if self.app.original_image is None:
+        snapshot = self._capture_snapshot()
+        if snapshot.media_info is None or snapshot.media_info.kind != "image":
             self.statusBar().showMessage("No processed image to export.")
             return
 
@@ -353,14 +436,15 @@ class MainWindow(QMainWindow):
         if not path:
             return
 
-        try:
-            self.app.export_image(path)
-            self.statusBar().showMessage(f"Image exported: {path}")
-        except Exception as exc:
-            self.statusBar().showMessage(f"Export failed: {exc}")
+        task_id = self._new_task_id("export-image")
+        self._task_kinds[task_id] = ("export-image", path)
+        self.statusBar().showMessage("Exporting image...")
+        application = self.app
+        self._tasks.submit(task_id, lambda cancellation, _progress, app=application: app.export_image_from_snapshot(snapshot, path, cancellation=cancellation))
 
     def _export_gif(self) -> None:
-        if not self.app.original_frames:
+        snapshot = self._capture_snapshot()
+        if snapshot.media_info is None or snapshot.media_info.kind != "gif":
             self.statusBar().showMessage("No GIF to export.")
             return
 
@@ -368,39 +452,21 @@ class MainWindow(QMainWindow):
         if not path:
             return
 
-        # Create progress dialog
         progress_dialog = ProgressDialog("Exporting GIF", self)
-
-        # Create worker and thread
-        self._export_worker = GifExportWorker()
-        self._export_worker.set_data(
-            self.app.original_frames,
-            self.app.pipeline,
-            self.app.frames_fps,
-            path,
-        )
-
-        self._export_thread = QThread()
-        self._export_worker.moveToThread(self._export_thread)
-
-        # Connect signals
-        self._export_thread.started.connect(self._export_worker.export)
-        self._export_worker.progress.connect(progress_dialog.set_progress)
-        self._export_worker.finished.connect(lambda p: self._on_export_finished(progress_dialog, p, "GIF"))
-        self._export_worker.error.connect(lambda e: self._on_export_error(progress_dialog, e))
-        self._export_worker.finished.connect(self._export_thread.quit)
-        self._export_worker.error.connect(self._export_thread.quit)
-        self._export_thread.finished.connect(self._cleanup_export_thread)
-
-        # Connect cancel button
-        progress_dialog.cancelled.connect(self._export_worker.stop)
-
-        # Start export
-        self._export_thread.start()
+        task_id = self._new_task_id("export-gif")
+        self._export_task = task_id
+        self._export_dialog = progress_dialog
+        self._task_kinds[task_id] = ("export-gif", path, "GIF")
+        progress_dialog.cancelled.connect(lambda tid=task_id: self._tasks.cancel(tid))
+        application = self.app
+        self._tasks.submit(task_id, lambda cancellation, progress, app=application: app.export_gif_from_snapshot(snapshot, path, progress=progress, cancellation=cancellation))
         progress_dialog.exec()
+        if self._export_dialog is progress_dialog:
+            self._export_dialog = None
 
     def _export_video(self) -> None:
-        if not self.app.video_provider:
+        snapshot = self._capture_snapshot()
+        if snapshot.media_info is None or snapshot.media_info.kind != "video":
             self.statusBar().showMessage("No video to export.")
             return
 
@@ -408,54 +474,17 @@ class MainWindow(QMainWindow):
         if not path:
             return
 
-        # Create progress dialog
         progress_dialog = ProgressDialog("Exporting Video", self)
-
-        # Create worker and thread
-        self._export_worker = VideoExportWorker()
-        self._export_worker.set_data(
-            self.app.video_provider,
-            self.app.pipeline,
-            path,
-        )
-
-        self._export_thread = QThread()
-        self._export_worker.moveToThread(self._export_thread)
-
-        # Connect signals
-        self._export_thread.started.connect(self._export_worker.export)
-        self._export_worker.progress.connect(progress_dialog.set_progress)
-        self._export_worker.finished.connect(lambda p: self._on_export_finished(progress_dialog, p, "Video"))
-        self._export_worker.error.connect(lambda e: self._on_export_error(progress_dialog, e))
-        self._export_worker.finished.connect(self._export_thread.quit)
-        self._export_worker.error.connect(self._export_thread.quit)
-        self._export_thread.finished.connect(self._cleanup_export_thread)
-
-        # Connect cancel button
-        progress_dialog.cancelled.connect(self._export_worker.stop)
-
-        # Start export
-        self._export_thread.start()
+        task_id = self._new_task_id("export-video")
+        self._export_task = task_id
+        self._export_dialog = progress_dialog
+        self._task_kinds[task_id] = ("export-video", path, "Video")
+        progress_dialog.cancelled.connect(lambda tid=task_id: self._tasks.cancel(tid))
+        application = self.app
+        self._tasks.submit(task_id, lambda cancellation, progress, app=application: app.export_video_from_snapshot(snapshot, path, progress=progress, cancellation=cancellation))
         progress_dialog.exec()
-
-    def _on_export_finished(self, dialog: ProgressDialog, path: str, media_type: str) -> None:
-        """Handle successful export completion."""
-        dialog.mark_complete()
-        self.statusBar().showMessage(f"{media_type} exported: {path}")
-
-    def _on_export_error(self, dialog: ProgressDialog, error_msg: str) -> None:
-        """Handle export error."""
-        dialog.mark_error(error_msg)
-        self.statusBar().showMessage(f"Export failed: {error_msg}")
-
-    def _cleanup_export_thread(self) -> None:
-        """Clean up the export thread."""
-        if self._export_worker:
-            self._export_worker.deleteLater()
-            self._export_worker = None
-        if self._export_thread:
-            self._export_thread.deleteLater()
-            self._export_thread = None
+        if self._export_dialog is progress_dialog:
+            self._export_dialog = None
 
     # ==================================================================
     # Preset actions
@@ -465,50 +494,33 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, "Save preset", "", "JSON (*.json)")
         if not path:
             return
-
-        try:
-            self.app.save_preset(path)
-            self.statusBar().showMessage(f"Preset saved: {path}")
-        except Exception as exc:
-            self.statusBar().showMessage(f"Failed to save preset: {exc}")
+        snapshot = PipelineSnapshot.from_pipeline(self.pipeline_widget.pipeline)
+        task_id = self._new_task_id("save-preset")
+        self._task_kinds[task_id] = ("save-preset", path)
+        self.statusBar().showMessage("Saving preset...")
+        application = self.app
+        self._tasks.submit(task_id, lambda _cancellation, _progress, app=application: app.save_preset_snapshot(snapshot, path))
 
     def _load_preset(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Load preset", "", "JSON (*.json)")
         if not path:
             return
 
-        try:
-            pipeline = self.app.load_preset(path)
-        except Exception as exc:
-            self.statusBar().showMessage(f"Failed to load preset: {exc}")
-            return
-
-        # Rebuild the pipeline widget UI to reflect the new effects
-        self.pipeline_widget.load_pipeline(pipeline)
-        self._process_and_display()
-        self.statusBar().showMessage(f"Preset loaded: {path}")
+        if self._active_preset_load_task is not None:
+            self._tasks.cancel(self._active_preset_load_task)
+        task_id = self._new_task_id("load-preset")
+        self._active_preset_load_task = task_id
+        self._task_kinds[task_id] = ("load-preset", path)
+        self.statusBar().showMessage("Loading preset...")
+        application = self.app
+        self._tasks.submit(task_id, lambda _cancellation, _progress, app=application: app.read_preset(path))
 
     # ==================================================================
     # Cleanup
     # ==================================================================
 
     def closeEvent(self, event) -> None:
-        """Clean up threads before closing."""
-        # Stop any running processing
-        if self._process_worker:
-            self._process_worker.stop()
-        if self._process_thread and self._process_thread.isRunning():
-            self._process_thread.quit()
-            self._process_thread.wait()
-
-        # Stop any running export
-        if self._export_worker:
-            if isinstance(self._export_worker, GifExportWorker):
-                self._export_worker.stop()
-            elif isinstance(self._export_worker, VideoExportWorker):
-                self._export_worker.stop()
-        if self._export_thread and self._export_thread.isRunning():
-            self._export_thread.quit()
-            self._export_thread.wait()
-
+        """Cancel backend tasks before the GUI is destroyed."""
+        self._tasks.cancel_all()
+        self._tasks.wait_for_done(2000)
         event.accept()

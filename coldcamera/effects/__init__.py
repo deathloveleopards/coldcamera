@@ -1,18 +1,6 @@
-from coldcamera.effects.includes.blur import BlurEffect
-from coldcamera.effects.includes.ccd_smear import CCDSmearEffect
-from coldcamera.effects.includes.chromatic_abberation import ChromaticAberrationEffect
-from coldcamera.effects.includes.contrast_brightness import ContrastBrightnessEffect
-from coldcamera.effects.includes.exposure import ExposureEffect
-from coldcamera.effects.includes.film_grain import FilmGrainEffect
-from coldcamera.effects.includes.ghosting import GhostingEffect
-from coldcamera.effects.includes.glow import GlowEffect
-from coldcamera.effects.includes.hue import HueEffect
-from coldcamera.effects.includes.jpeg_damage import JpegDamageEffect
-from coldcamera.effects.includes.noise import NoiseEffect
-from coldcamera.effects.includes.rescale import RescaleEffect
-from coldcamera.effects.includes.sharpen import SharpenEffect
-from coldcamera.effects.includes.vibrance import VibranceEffect
-from coldcamera.effects.includes.warmth import WarmthEffect
+"""Effect implementations, lazily exported for lightweight imports."""
+
+from importlib import import_module
 
 __all__ = [
     "BlurEffect",
@@ -31,3 +19,16 @@ __all__ = [
     "VibranceEffect",
     "WarmthEffect",
 ]
+
+
+def __getattr__(name: str):
+    if name not in __all__:
+        raise AttributeError(name)
+    module_name = "coldcamera.effects.includes." + {
+        "CCDSmearEffect": "ccd_smear",
+        "ChromaticAberrationEffect": "chromatic_abberation",
+        "ContrastBrightnessEffect": "contrast_brightness",
+        "FilmGrainEffect": "film_grain",
+        "JpegDamageEffect": "jpeg_damage",
+    }.get(name, name.removesuffix("Effect").lower())
+    return getattr(import_module(module_name), name)

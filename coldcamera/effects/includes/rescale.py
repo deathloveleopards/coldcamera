@@ -2,9 +2,7 @@ import numpy as np
 from PIL import Image, ImageOps
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterCheckBox, ParameterDropdown
 from coldcamera.classes.parameter import EffectParam
-from coldcamera.enums import RescaleResolution
 from coldcamera.types import Processable
 
 
@@ -17,16 +15,6 @@ class RescaleEffect(EffectBase):
             params=[
                 EffectParam("resolution", str, "640x480", default="640x480"),
                 EffectParam("adaptive", bool, False, default=False),
-            ],
-            layout_elements=[
-                ParameterDropdown(
-                    "resolution",
-                    "Resolution",
-                    enum_type=RescaleResolution,
-                    default=RescaleResolution.R640x480,  # pyright: ignore[reportArgumentType]
-                    value=RescaleResolution.R640x480,  # pyright: ignore[reportArgumentType]
-                ),
-                ParameterCheckBox("adaptive", "Adaptive orientation"),
             ],
         )
 

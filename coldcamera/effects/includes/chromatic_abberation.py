@@ -2,9 +2,7 @@ import cv2
 import numpy as np
 
 from coldcamera.classes.effect import EffectBase
-from coldcamera.classes.layout import ParameterDropdown, ParameterSlider
 from coldcamera.classes.parameter import EffectParam
-from coldcamera.enums import ChromaticAberrationType
 from coldcamera.types import Processable
 
 
@@ -18,17 +16,6 @@ class ChromaticAberrationEffect(EffectBase):
                 EffectParam("shift", float, 0.0, default=0.0),
                 EffectParam("rotation", float, 0.0, default=0.0),
                 EffectParam("ab_type", str, "rb", default="rb"),
-            ],
-            layout_elements=[
-                ParameterSlider("shift", "Shift", min_value=-20, max_value=20, step=1),
-                ParameterSlider("rotation", "Rotation", min_value=0, max_value=360, step=1),
-                ParameterDropdown(
-                    "ab_type",
-                    "Channel combo",
-                    enum_type=ChromaticAberrationType,
-                    default=ChromaticAberrationType.RED_BLUE,  # pyright: ignore[reportArgumentType]
-                    value=ChromaticAberrationType.RED_BLUE,  # pyright: ignore[reportArgumentType]
-                ),
             ],
         )
 

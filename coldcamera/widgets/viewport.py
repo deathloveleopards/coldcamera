@@ -153,6 +153,15 @@ class ViewportWidget(QWidget):
 
         self.set_playback(total_frames, fps)
 
+    def stop_playback(self) -> None:
+        """Stop animation and clear any queued frame request."""
+
+        self.play_timer.stop()
+        self.current_frame = 0
+        self.total_frames = 0
+        self._frame_request_pending = False
+        self._pending_frame_index = None
+
     def update_current_frame(self, qimg: QImage):
         """
         Update the current frame for video or GIF.
@@ -162,6 +171,11 @@ class ViewportWidget(QWidget):
         self.image = qimg
         self.size_label.setText(f"{qimg.width()}x{qimg.height()}")
         self.update()
+
+        self.finish_frame_request()
+
+    def finish_frame_request(self) -> None:
+        """Release the frame-request slot after success, failure, or cancellation."""
 
         # Mark frame processing as complete
         self._frame_request_pending = False
