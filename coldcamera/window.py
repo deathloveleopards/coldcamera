@@ -107,6 +107,7 @@ class MainWindow(QMainWindow):
         self.viewport.frame_changed.connect(self._on_frame_request)
 
         self._tasks = QtTaskRunner(self)
+        self._tasks.started.connect(self._on_task_started)
         self._tasks.result.connect(self._on_task_result)
         self._tasks.error.connect(self._on_task_error)
         self._tasks.progress.connect(self._on_task_progress)
@@ -249,6 +250,9 @@ class MainWindow(QMainWindow):
         task_id = self._new_task_id("preview")
         self._active_preview_task = task_id
         self._task_kinds[task_id] = ("preview", generation, self._current_frame_index, snapshot.media_info)
+        self.statusBar().showMessage(
+            f"Preview queued: frame {self._current_frame_index + 1} of {snapshot.media_info.frame_count}."
+        )
         application = self.app
         self._tasks.submit(
             task_id,
@@ -279,6 +283,17 @@ class MainWindow(QMainWindow):
 
     def _new_task_id(self, prefix: str) -> str:
         return f"{prefix}-{next(self._task_ids)}"
+
+    def _on_task_started(self, task_id: str) -> None:
+        """Show when the latest preview actually begins running in a worker."""
+        task_context = self._task_kinds.get(task_id)
+        if task_context is None or task_context[0] != "preview" or task_id != self._active_preview_task:
+            return
+        _kind, _generation, frame_index, media_info = task_context
+        if media_info is not None:
+            self.statusBar().showMessage(
+                f"Rendering preview: frame {frame_index + 1} of {media_info.frame_count}..."
+            )
 
     def _on_task_result(self, task_id: str, result: Any) -> None:
         task_context = self._task_kinds.pop(task_id, None)
@@ -313,8 +328,16 @@ class MainWindow(QMainWindow):
             if result is not None:
                 original, processed = result
                 self._on_frame_processed(original, processed, frame_index, media_info.kind)
+                self.statusBar().showMessage(
+                    f"Preview ready: frame {frame_index + 1} of {media_info.frame_count}."
+                )
             elif media_info.kind != "image":
                 self.viewport.finish_frame_request()
+                self.statusBar().showMessage(
+                    f"Preview unavailable: frame {frame_index + 1} of {media_info.frame_count}."
+                )
+            else:
+                self.statusBar().showMessage("Preview unavailable.")
         elif kind == "export-image":
             _kind, path = task_context
             self.statusBar().showMessage(f"Image exported: {path}")
@@ -351,7 +374,7 @@ class MainWindow(QMainWindow):
                 media_info = task_context[3]
                 if media_info is not None and media_info.kind != "image":
                     self.viewport.finish_frame_request()
-                self.statusBar().showMessage(f"Processing error: {error}")
+                self.statusBar().showMessage(f"Preview failed: {error}")
         elif kind in {"export-gif", "export-video"}:
             if self._export_dialog is not None:
                 self._export_dialog.mark_error(error)

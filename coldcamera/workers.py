@@ -14,6 +14,7 @@ BackendTask = Callable[[CancellationToken, ProgressCallback], Any]
 
 
 class _TaskSignals(QObject):
+    started = Signal(str)
     result = Signal(str, object)
     error = Signal(str, str)
     progress = Signal(str, int, int)
@@ -34,6 +35,7 @@ class _TaskWorker(QRunnable):
     def run(self) -> None:
         try:
             self.cancellation.raise_if_cancelled()
+            self.signals.started.emit(self.task_id)
             result = self.task(self.cancellation, lambda current, total: self.signals.progress.emit(self.task_id, current, total))
             self.cancellation.raise_if_cancelled()
             self.signals.result.emit(self.task_id, result)
@@ -49,6 +51,7 @@ class _TaskWorker(QRunnable):
 class QtTaskRunner(QObject):
     """Schedules backend callables on Qt's thread pool and exposes task events."""
 
+    started = Signal(str)
     result = Signal(str, object)
     error = Signal(str, str)
     progress = Signal(str, int, int)
@@ -66,6 +69,7 @@ class QtTaskRunner(QObject):
             raise ValueError(f"Task id is already active: {task_id}")
         cancellation = CancellationToken()
         worker = _TaskWorker(task_id, task, cancellation)
+        worker.signals.started.connect(self.started)
         worker.signals.result.connect(self.result)
         worker.signals.error.connect(self.error)
         worker.signals.progress.connect(self.progress)

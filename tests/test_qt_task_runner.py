@@ -19,8 +19,10 @@ class QtTaskRunnerTests(unittest.TestCase):
     def test_backend_result_and_progress_are_delivered(self) -> None:
         runner = QtTaskRunner()
         loop = QEventLoop()
+        started_values = []
         result_values = []
         progress_values = []
+        runner.started.connect(started_values.append)
         runner.result.connect(lambda task_id, value: result_values.append((task_id, value)))
         runner.progress.connect(lambda task_id, current, total: progress_values.append((task_id, current, total)))
         runner.finished.connect(lambda _task_id: loop.quit())
@@ -29,6 +31,7 @@ class QtTaskRunnerTests(unittest.TestCase):
         QTimer.singleShot(5000, loop.quit)
         loop.exec()
 
+        self.assertEqual(started_values, ["sample"])
         self.assertEqual(result_values, [("sample", "done")])
         self.assertEqual(progress_values, [("sample", 1, 1)])
 
