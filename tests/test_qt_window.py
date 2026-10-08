@@ -52,7 +52,7 @@ class QtWindowTests(unittest.TestCase):
             self.assertEqual(app.media_info.path, str(image_path))
             self.assertIsNotNone(window.viewport.processed_qimage)
             self.assertEqual(window.viewport.processed_qimage.width(), 4)
-            self.assertEqual(window.statusBar().currentMessage(), "Preview ready: frame 1 of 1.")
+            self.assertEqual(window.statusBar().currentMessage(), f"Image opened: {image_path}")
             window.close()
 
 

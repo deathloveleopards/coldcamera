@@ -17,7 +17,7 @@ from itertools import count
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QElapsedTimer, QTimer, Qt
 from PySide6.QtGui import QAction, QImage
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -121,6 +121,13 @@ class MainWindow(QMainWindow):
         self._active_preset_load_task: str | None = None
         self._active_preview_task: str | None = None
         self._active_preview_generation = 0
+        self._rendering_task_id: str | None = None
+        self._render_status_visible = False
+        self._render_previous_status_message = ""
+        self._render_elapsed = QElapsedTimer()
+        self._render_status_timer = QTimer(self)
+        self._render_status_timer.setInterval(100)
+        self._render_status_timer.timeout.connect(self._update_render_status)
         self._export_task: str | None = None
         self._export_dialog: ProgressDialog | None = None
         self._current_frame_index = 0
@@ -247,14 +254,12 @@ class MainWindow(QMainWindow):
         generation = self._active_preview_generation
         previous_task = self._active_preview_task
         if previous_task is not None:
+            self._stop_render_status(previous_task)
             self._tasks.cancel(previous_task)
 
         task_id = self._new_task_id("preview")
         self._active_preview_task = task_id
         self._task_kinds[task_id] = ("preview", generation, self._current_frame_index, snapshot.media_info)
-        self.statusBar().showMessage(
-            f"Preview queued: frame {self._current_frame_index + 1} of {snapshot.media_info.frame_count}."
-        )
         application = self.app
         self._tasks.submit(
             task_id,
@@ -287,15 +292,55 @@ class MainWindow(QMainWindow):
         return f"{prefix}-{next(self._task_ids)}"
 
     def _on_task_started(self, task_id: str) -> None:
-        """Show when the latest preview actually begins running in a worker."""
+        """Start timing the latest preview without reporting quick renders."""
         task_context = self._task_kinds.get(task_id)
         if task_context is None or task_context[0] != "preview" or task_id != self._active_preview_task:
             return
-        _kind, _generation, frame_index, media_info = task_context
-        if media_info is not None:
-            self.statusBar().showMessage(
-                f"Rendering preview: frame {frame_index + 1} of {media_info.frame_count}..."
-            )
+        self._rendering_task_id = task_id
+        self._render_status_visible = False
+        self._render_previous_status_message = self.statusBar().currentMessage()
+        self._render_elapsed.start()
+        self._render_status_timer.start()
+
+    def _update_render_status(self) -> None:
+        """Show an elapsed-time heartbeat only while a preview is taking time."""
+        if self._rendering_task_id != self._active_preview_task:
+            self._render_status_timer.stop()
+            return
+
+        current_message = self.statusBar().currentMessage()
+        if self._render_status_visible:
+            if not current_message.startswith("Rendering effects..."):
+                # A different user action owns the status bar now.
+                self._render_status_visible = False
+                self._render_status_timer.stop()
+                return
+        elif current_message != self._render_previous_status_message:
+            # Do not replace a newer load/export/preset message.
+            self._render_status_timer.stop()
+            return
+
+        elapsed_seconds = self._render_elapsed.elapsed() / 1000
+        if elapsed_seconds < 0.5:
+            return
+
+        self.statusBar().showMessage(f"Rendering effects... ({elapsed_seconds:.1f}s)")
+        self._render_status_visible = True
+
+    def _stop_render_status(self, task_id: str | None = None) -> None:
+        """Stop the render heartbeat and restore the prior message if it is still ours."""
+        if task_id is not None and task_id != self._rendering_task_id:
+            return
+        self._render_status_timer.stop()
+        current_message = self.statusBar().currentMessage()
+        if self._render_status_visible and current_message.startswith("Rendering effects..."):
+            if self._render_previous_status_message:
+                self.statusBar().showMessage(self._render_previous_status_message)
+            else:
+                self.statusBar().clearMessage()
+        self._rendering_task_id = None
+        self._render_status_visible = False
+        self._render_previous_status_message = ""
 
     def _on_task_result(self, task_id: str, result: Any) -> None:
         task_context = self._task_kinds.pop(task_id, None)
@@ -309,6 +354,7 @@ class MainWindow(QMainWindow):
             media_source = result
             self._active_preview_generation += 1
             if self._active_preview_task is not None:
+                self._stop_render_status(self._active_preview_task)
                 self._tasks.cancel(self._active_preview_task)
             self.viewport.stop_playback()
             media_info = self.app.set_media(media_source)
@@ -330,20 +376,13 @@ class MainWindow(QMainWindow):
             _kind, generation, frame_index, media_info = task_context
             if task_id != self._active_preview_task or generation != self._active_preview_generation or media_info is None:
                 return
+            self._stop_render_status(task_id)
             self._active_preview_task = None
             if result is not None:
                 original, processed = result
                 self._on_frame_processed(original, processed, frame_index, media_info.kind)
-                self.statusBar().showMessage(
-                    f"Preview ready: frame {frame_index + 1} of {media_info.frame_count}."
-                )
             elif media_info.kind != "image":
                 self.viewport.finish_frame_request()
-                self.statusBar().showMessage(
-                    f"Preview unavailable: frame {frame_index + 1} of {media_info.frame_count}."
-                )
-            else:
-                self.statusBar().showMessage("Preview unavailable.")
         elif kind == "export-image":
             _kind, path = task_context
             self.statusBar().showMessage(f"Image exported: {path}")
@@ -380,6 +419,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Open failed: {error}")
         elif kind == "preview":
             if task_id == self._active_preview_task:
+                self._stop_render_status(task_id)
                 self._active_preview_task = None
                 media_info = task_context[3]
                 if media_info is not None and media_info.kind != "image":
@@ -415,6 +455,8 @@ class MainWindow(QMainWindow):
 
     def _on_task_cancelled(self, task_id: str) -> None:
         context = self._task_kinds.pop(task_id, None)
+        if context and context[0] == "preview":
+            self._stop_render_status(task_id)
         if context and context[0] in {"export-gif", "export-video"} and self._export_dialog is not None:
             logger.info(f"{context[2]} export cancelled: path={context[1]}")
             self._export_dialog.mark_error("Export cancelled")
@@ -572,6 +614,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         """Cancel backend tasks before the GUI is destroyed."""
+        self._stop_render_status()
         self._tasks.cancel_all()
         self._tasks.wait_for_done(2000)
         if not self._close_logged:
